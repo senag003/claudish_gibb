@@ -28,9 +28,3 @@ Ett 2D-pixelart-pusselspel i webbläsaren. Byt mellan Edvin (snabb, hoppar högt
 - `js/levels.js`: banorna
 - `js/engine.js`: fysik, pussel, rendering och ljud
 - `js/main.js`: tangentbord, skalning och spel-loop
-
-## Utvecklingsverktyg
-
-- `tools/solve.html`: en lösningsbot spelar igenom alla banor med riktig fysik och kör fusk-tester (saker som inte ska gå)
-- `tools/preview.html`: granskningsark med alla animationer, tiles och spelskärmar
-- `tools/shoot.ps1`: tar skärmdumpar av sidorna ovan med headless Edge (Windows)

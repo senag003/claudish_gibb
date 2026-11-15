@@ -1,7 +1,2 @@
-# Genererade skärmdumpar (kan innehålla referensfoton)
-tools/review/
-# Referensfoton hålls privata
-bilder_pa_karaktarer/
-# Lokala arbetsanteckningar (beskriver referensfotona)
-PLAN.md
-GRANSKNING.md
+# Repot innehåller bara det som krävs för att köra spelet.
+# Utvecklingsverktyg, anteckningar och referensfoton ligger utanför repot (../utveckling, ../bilder_pa_karaktarer).
