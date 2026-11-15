@@ -11,11 +11,11 @@
   const STATS = {
     edvin: {
       speed: 130, accel: 1400, airAccel: 950, friction: 1500, jump: 320, gravity: 1.0,
-      strong: false, stride: 8, prejump: 0, color: '#6f8fd6', name: 'EDVIN'
+      strong: false, stride: 8, prejump: 0, color: '#6f8fd6', name: 'EDVIN', emotes: ['watch', 'jog']
     },
     hedda: {
       speed: 100, accel: 700, airAccel: 450, friction: 520, jump: 235, gravity: 1.12,
-      strong: true, stride: 7, prejump: 0.05, color: '#f0a3c2', name: 'HEDDA'
+      strong: true, stride: 7, prejump: 0.05, color: '#f0a3c2', name: 'HEDDA', emotes: ['flex']
     }
   };
   const HIT_W = 12, HIT_H = 30;
@@ -130,7 +130,8 @@
         this.sound.click();
       }
       if (k.backPressed || k.wardrobePressed || k.confirmPressed) {
-        this.state = 'title';
+        this.state = this.wdReturn || 'title';
+        this.wdReturn = null;
         this.sound.swap();
       }
     }
@@ -274,6 +275,15 @@
         return;
       }
 
+      if (k.wardrobePressed) {
+        // garderoben mitt i spelet – banan pausas och fortsätter där den var
+        this.wdReturn = 'play';
+        this.wd.char = this.active;
+        this.state = 'wardrobe';
+        this.sound.ensure(); this.sound.swap();
+        this.consumeKeys();
+        return;
+      }
       if (k.restartPressed) { this.loadLevel(this.levelIndex); this.consumeKeys(); return; }
       if (k.swapPressed) {
         this.active = 1 - this.active;
@@ -476,9 +486,13 @@
       else if (c.landT > 0) anim = 'land';
       else if (Math.abs(c.vx) > 6) anim = 'run';
       else anim = 'idle';
-      // Hedda spänner musklerna om hon stått still en stund
+      // Emote när figuren stått still en stund (Hedda spänner musklerna, Edvin kollar klockan / joggar)
       if (anim === 'idle') c.idleT += dt; else c.idleT = 0;
-      if (anim === 'idle' && this.sprites[c.type].right.flex && c.idleT > 3 && (c.idleT % 6) < 1.4) anim = 'flex';
+      const em = c.stats.emotes;
+      if (anim === 'idle' && em && c.idleT > 3 && ((c.idleT - 3) % 6) < 1.8) {
+        const pick = em[Math.floor((c.idleT - 3) / 6) % em.length];
+        if (this.sprites[c.type].right[pick]) anim = pick;
+      }
       if (anim !== c.anim) { c.anim = anim; c.frame = 0; c.animT = 0; c.stepAcc = 0; }
       const frames = this.sprites[c.type].right[anim];
       if (anim === 'run') {
@@ -495,7 +509,7 @@
       } else if (anim === 'smash') {
         c.frame = c.smashT > 0.14 ? 0 : 1;
       } else {
-        const fps = anim === 'idle' ? (c.stats.strong ? 1.4 : 1.8) : (anim === 'push' ? 5 : (anim === 'flex' ? 3 : 6));
+        const fps = anim === 'idle' ? (c.stats.strong ? 1.4 : 1.8) : (anim === 'push' ? 5 : ({ flex: 3, watch: 2.5, jog: 8 }[anim] || 6));
         c.animT += dt * fps;
         if (c.animT >= 1) { c.animT -= 1; c.frame = (c.frame + 1) % frames.length; }
       }
@@ -758,8 +772,11 @@
       names.forEach((name, i) => {
         const sel = this.wd.char === i;
         const set = this.sprites[name].right;
-        const frames = sel && name === 'hedda' && (this.time % 5) > 3.6 ? set.flex : set.idle;
-        const img = frames[Math.floor(this.time * 1.6) % frames.length];
+        const em = STATS[name].emotes;
+        const cyc = Math.floor(this.time / 5);
+        const emoting = sel && (this.time % 5) > 3.2;
+        const frames = emoting ? set[em[cyc % em.length]] : set.idle;
+        const img = frames[Math.floor(this.time * (emoting ? 4 : 1.6)) % frames.length];
         const s = 3, cx = i === 0 ? 66 : 382;
         // spotlight
         ctx.fillStyle = sel ? 'rgba(255,243,196,0.16)' : 'rgba(255,255,255,0.04)';

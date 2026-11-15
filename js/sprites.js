@@ -79,6 +79,17 @@
       ]
     };
     if (T.flex) anims.flex = [frame(art, L.idle, T.flex), frame(art, L.idle, T.flex, { upDy: 1 })];
+    if (T.watch) {
+      // tittar ner på klockan (huvudet sänkt), sedan en liten nick
+      anims.watch = [frame(art, L.idle, T.watch, { headDy: 1 }), frame(art, L.idle, T.watch, { headDy: 1 }), frame(art, L.idle, T.watch, { headDy: 1, upDy: 1 }), frame(art, L.idle, T.watch, { headDy: 1 })];
+      // joggar på stället
+      anims.jog = [
+        frame(art, L.down, T.runA, { upDy: 1 }),
+        frame(art, L.pass, T.idle, { allDy: -1 }),
+        frame(art, L.down, T.runB, { upDy: 1 }),
+        frame(art, L.pass, T.idle, { allDy: -1 })
+      ];
+    }
     const left = {};
     for (const k in anims) left[k] = anims[k].map(flipCanvas);
     const portrait = makeCanvas(24, 14);

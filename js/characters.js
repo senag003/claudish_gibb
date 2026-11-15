@@ -13,7 +13,8 @@ window.CHARACTER_ART = (function () {
     J: '#28355a', j: '#1b2440', K: '#3e5287',     // mörkblå skjortjacka
     T: '#f4f0e8', t: '#d3cdc2', C: '#9aa4b4',     // vit t-shirt, silverkedja
     D: '#4b6594', d: '#36497a',                   // jeans
-    G: '#6d7f90', L: '#b6ef3a', w: '#eeeeee'      // grå skor med lime
+    G: '#6d7f90', L: '#b6ef3a', w: '#eeeeee',     // grå skor med lime
+    x: '#1b1b1b'                                  // sportklocka
   });
 
   const HEDDA_PAL = Object.assign({}, SKIN, {
@@ -117,6 +118,22 @@ window.CHARACTER_ART = (function () {
     '.....Ss.JJTtTTJJ........',
     '........JJTTTTJJ........',
     '........jjjjjjjj........'
+  ];
+
+  // Kollar sportklockan: höger underarm upp framför bröstet (emote när han står still)
+  const E_WATCH = [
+    '..........sSSs..........',
+    '......JJJJTTTTJJJJ......',
+    '.....JJJJJCTTCJJJJJ.....',
+    '.....JKJJJTCCTJJJjJ.....',
+    '.....JKJJJTTTTJJJjJ.....',
+    '.....JKJJJTSSjjjjjJ.....',
+    '.....JKJJJTxSjjjjjJ.....',
+    '.....JK.JJTTTTJJ.jJ.....',
+    '.....JK.JJTtTTJJ........',
+    '.....JK.JJTtTTJJ........',
+    '.....SS.JJTTTTJJ........',
+    '.....Ss.jjjjjjjj........'
   ];
 
   // ================= HEDDA =================
@@ -432,7 +449,7 @@ window.CHARACTER_ART = (function () {
     legs: LEGS,
     edvin: {
       pal: EDVIN_PAL, head: E_HEAD, hairBack: null,
-      torso: { idle: E_IDLE, runA: E_RUN_A, runB: E_RUN_B, jump: E_JUMP, push: E_PUSH }
+      torso: { idle: E_IDLE, runA: E_RUN_A, runB: E_RUN_B, jump: E_JUMP, push: E_PUSH, watch: E_WATCH }
     },
     hedda: {
       pal: HEDDA_PAL, head: H_HEAD, hairBack: H_HAIR_BACK, hairFront: H_HAIR_FRONT,

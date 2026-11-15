@@ -13,7 +13,7 @@ Ett 2D-pixelart-pusselspel i webbläsaren. Byt mellan Edvin (snabb, hoppar högt
 | TAB | Byt figur |
 | E | Använd spak/knapp. Hedda slår (sönder spruckna väggar) |
 | R | Börja om banan |
-| C (på titelskärmen) | Garderob: byt tröja, byxor och skor |
+| C | Garderob: byt tröja, byxor och skor, när som helst |
 
 ## Banor
 

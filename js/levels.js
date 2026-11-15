@@ -39,7 +39,7 @@
     {
       // Lär ut: Edvin hoppar högt, Hedda slår sönder, någon måste stanna kvar på en platta.
       name: 'Hönan har rymt',
-      hint: 'TAB byter figur. Edvin hoppar högt, Hedda är stark. E = använd.',
+      hint: 'TAB byter figur. Edvin hoppar högt, Hedda är stark. E = använd. C = byt kläder.',
       map: build(40, L => {
         L.base();
         L.set(7, 12, 'E'); L.set(9, 12, 'H');
