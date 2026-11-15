@@ -3,7 +3,11 @@
   'use strict';
 
   const TILE = 16;
-  const W = 448, H = 256;           // intern upplösning (28 x 16 tiles)
+  // Vyns storlek i spelpixlar. Anpassas efter fönstret (main.js) så att hela skärmen fylls
+  // med skarpa pixlar: bredare fönster = mer bana i sidled, högre = mer himmel ovanför.
+  let W = 448, H = 256;
+  const WORLD_H = 256;              // banorna är 16 tiles höga
+  function setView(w, h) { W = w; H = h; }
   const GRAVITY = 900;
   const MAX_FALL = 360;
 
@@ -766,8 +770,9 @@
       this.drawBackground(ctx, 0);
       ctx.fillStyle = 'rgba(20,16,30,0.55)'; ctx.fillRect(0, 0, W, H);
       // golv
-      ctx.fillStyle = '#3a3448'; ctx.fillRect(0, 214, W, 42);
-      ctx.fillStyle = '#4c4560'; ctx.fillRect(0, 214, W, 2);
+      const floorY = 214 + (H - WORLD_H);
+      ctx.fillStyle = '#3a3448'; ctx.fillRect(0, floorY, W, H - floorY);
+      ctx.fillStyle = '#4c4560'; ctx.fillRect(0, floorY, W, 2);
       const names = ['edvin', 'hedda'];
       names.forEach((name, i) => {
         const sel = this.wd.char === i;
@@ -777,17 +782,17 @@
         const emoting = sel && (this.time % 5) > 3.2;
         const frames = emoting ? set[em[cyc % em.length]] : set.idle;
         const img = frames[Math.floor(this.time * (emoting ? 4 : 1.6)) % frames.length];
-        const s = 3, cx = i === 0 ? 66 : 382;
+        const s = 3, cx = i === 0 ? 66 : W - 66;
         // spotlight
         ctx.fillStyle = sel ? 'rgba(255,243,196,0.16)' : 'rgba(255,255,255,0.04)';
-        ctx.beginPath(); ctx.ellipse(cx, 212, 36, 7, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(cx, floorY - 2, 36, 7, 0, 0, Math.PI * 2); ctx.fill();
         if (sel) { // pil ovanför vald figur
-          const ay = 214 - 40 * s - 4 + Math.round(Math.sin(this.time * 6) * 2);
+          const ay = floorY - 40 * s - 4 + Math.round(Math.sin(this.time * 6) * 2);
           ctx.fillStyle = '#f2d25a';
           ctx.fillRect(cx - 4, ay, 9, 2); ctx.fillRect(cx - 3, ay + 2, 7, 1); ctx.fillRect(cx - 2, ay + 3, 5, 1); ctx.fillRect(cx - 1, ay + 4, 3, 1);
         }
         ctx.globalAlpha = sel ? 1 : 0.45;
-        ctx.drawImage(img, cx - 16 * s, 214 - 40 * s, 32 * s, 40 * s);
+        ctx.drawImage(img, cx - 16 * s, floorY - 40 * s, 32 * s, 40 * s);
         ctx.globalAlpha = 1;
       });
       const u = this.ui;
@@ -811,7 +816,7 @@
       this.drawBackground(ctx, camX);
 
       ctx.save();
-      ctx.translate(-camX, 0);
+      ctx.translate(-camX, H - WORLD_H);   // banan ligger längst ner, extra höjd blir himmel
       this.drawTiles(ctx, camX);
       this.drawBlocks(ctx);
       this.drawHen(ctx);
@@ -878,7 +883,11 @@
           // kantlinje mot luft
           if (!this.isSolidTile(tx - 1, ty)) { ctx.fillStyle = 'rgba(40,24,16,0.35)'; ctx.fillRect(px, py, 1, TILE); }
           if (!this.isSolidTile(tx + 1, ty)) { ctx.fillStyle = 'rgba(40,24,16,0.35)'; ctx.fillRect(px + 15, py, 1, TILE); }
-        } else if (t === 'S') ctx.drawImage(S.tile('stone', tx, ty), px, py);
+        } else if (t === 'S') {
+          ctx.drawImage(S.tile('stone', tx, ty), px, py);
+          // väggar som når banans tak fortsätter upp i den extra himlen
+          if (ty === 0) for (let k = 1; k * TILE < H - WORLD_H + TILE; k++) ctx.drawImage(S.tile('stone', tx, -k & 7), px, py - k * TILE);
+        }
         else if (t === 'C') ctx.drawImage(S.tile('cracked', tx, ty), px, py);
         else if (t === '^') ctx.drawImage(S.tile('spikes', tx, ty), px, py);
         else if (t >= '1' && t <= '4') this.drawTrigger(ctx, this.triggers[t], px, py);
@@ -1023,5 +1032,5 @@
   }
 
   window.Game = Game;
-  window.GAME_CONST = { TILE, W, H, STATS, HIT_W, HIT_H };
+  window.GAME_CONST = { TILE, get W() { return W; }, get H() { return H; }, WORLD_H, STATS, HIT_W, HIT_H, setView };
 })();

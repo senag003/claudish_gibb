@@ -19,12 +19,24 @@
   // ?garderob öppnar garderoben direkt (används av skärmdumpsverktyget)
   if (/garderob/.test(location.search)) game.state = 'wardrobe';
 
-  // Heltalsskalning som får plats i fönstret
+  // Fyll hela fönstret: heltalsskala (skarpa pixlar) och vyn växer i stället för att lämna kanter.
+  const C = window.GAME_CONST;
+  const MIN_LEVEL_W = Math.min(...window.LEVELS.map(l => l.map[0].length)) * C.TILE;
   const wrap = document.getElementById('wrap');
+  let lastView = '';
   function resize() {
-    const s = Math.max(1, Math.floor(Math.min(window.innerWidth / W, window.innerHeight / H)));
-    wrap.style.width = (W * s) + 'px';
-    wrap.style.height = (H * s) + 'px';
+    const s = Math.max(1, Math.floor(window.innerHeight / C.WORLD_H));
+    const w = Math.max(320, Math.min(MIN_LEVEL_W, Math.ceil(window.innerWidth / s)));
+    const h = Math.max(C.WORLD_H, Math.ceil(window.innerHeight / s));
+    const key = w + 'x' + h;
+    if (key !== lastView) {
+      lastView = key;
+      C.setView(w, h);
+      canvas.width = w; canvas.height = h;
+      sprites.buildBg(w, h);
+    }
+    wrap.style.width = (w * s) + 'px';
+    wrap.style.height = (h * s) + 'px';
     document.documentElement.style.setProperty('--scale', s);
   }
   window.addEventListener('resize', resize);

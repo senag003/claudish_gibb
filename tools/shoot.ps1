@@ -34,5 +34,5 @@ function Shoot($htmlPath, $pngName, $w, $h, $budget, $query) {
 $only = $args[0]
 if (-not $only -or $only -eq 'solve') { Shoot (Join-Path $here 'solve.html') 'losningsbot.png' 1000 2800 8000 }
 if (-not $only -or $only -eq 'preview') { Shoot (Join-Path $here 'preview.html') 'granskningsark.png' 1600 5200 5000 }
-if (-not $only -or $only -eq 'title') { Shoot (Join-Path $here '..\index.html') 'titelskarm.png' 1344 768 2500 '' }
+if (-not $only -or $only -eq 'title') { Shoot (Join-Path $here '..\index.html') 'titelskarm.png' 1888 870 2500 '' }
 if (-not $only -or $only -eq 'wardrobe') { Shoot (Join-Path $here '..\index.html') 'garderob.png' 1344 768 2500 '?garderob' }

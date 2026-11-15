@@ -467,6 +467,11 @@
       this.edvin = buildCharacter('edvin', A.edvin, A.legs);
       this.hedda = buildCharacter('hedda', A.hedda, A.legs);
       this.hen = buildHen();
+      this.buildBg(W, H);
+      return this;
+    },
+    // Bakgrunden byggs om när fönstrets storlek ändras
+    buildBg(W, H) {
       this.bg = {
         sky: buildSky(W, H),
         clouds: [0, 1, 2, 3].map(buildCloud),
@@ -474,7 +479,6 @@
         hills: buildLayer(H, 'hills'),
         forest: buildLayer(H, 'forest')
       };
-      return this;
     },
     // Bygger om en figur med valda kläder: outfit = { top, pants, shoes } (index)
     dress(name, outfit) {
