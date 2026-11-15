@@ -1,4 +1,4 @@
-# Edvin & Hedda – och hönan som rymde
+﻿# Edvin & Hedda – och hönan som rymde
 
 Ett 2D-pixelart-pusselspel i webbläsaren. Byt mellan Edvin (snabb, hoppar högt) och Hedda (stark: knuffar lådor och slår sönder väggar) och samarbeta för att fånga hönan som rymt.
 
@@ -11,7 +11,7 @@ Ett 2D-pixelart-pusselspel i webbläsaren. Byt mellan Edvin (snabb, hoppar högt
 | Pilar / WASD | Gå |
 | Mellanslag | Hoppa |
 | TAB | Byt figur |
-| E | Använd spak/knapp, slå sönder sprucken vägg |
+| E | Använd spak/knapp. Hedda slår (sönder spruckna väggar) |
 | R | Börja om banan |
 | C (på titelskärmen) | Garderob: byt tröja, byxor och skor |
 

@@ -66,6 +66,7 @@
     gate(open) { this.tone(open ? 150 : 240, 0.35, 'sawtooth', 0.035, open ? 1.6 : 0.6); }
     tick() { this.tone(1200, 0.025, 'square', 0.025); }
     hurt() { this.tone(300, 0.3, 'sawtooth', 0.07, 0.3); }
+    whoosh() { this.noise(0.12, 0.07, 5000); this.tone(500, 0.08, 'triangle', 0.02, 0.5); }
     nope() { this.tone(180, 0.12, 'square', 0.04, 0.8); }
     win() { [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => this.tone(f, 0.18, 'triangle', 0.08), i * 90)); }
     cluck() { this.tone(720, 0.05, 'square', 0.03, 0.8); setTimeout(() => this.tone(620, 0.07, 'square', 0.03, 0.7), 70); }
@@ -412,7 +413,11 @@
       if (c.landT > 0) c.landT -= dt;
       if (c.smashT > 0) {
         c.smashT -= dt;
-        if (c.smashT <= 0.14 && c.smashTarget) { this.breakWall(c.smashTarget[0], c.smashTarget[1]); c.smashTarget = null; }
+        if (c.smashT <= 0.14 && !c.punched) {
+          c.punched = true;
+          if (c.smashTarget) { this.breakWall(c.smashTarget[0], c.smashTarget[1]); c.smashTarget = null; }
+          else this.punchAir(c);
+        }
       }
 
       // Fartstreck för Edvin
@@ -520,10 +525,31 @@
         const dist = Math.abs((tx * TILE + 8) - (c.x + c.w / 2));
         if (dist > 18) continue;
         if (c.stats.strong) {
+          if (c.smashT > 0) return;
           c.facing = tx * TILE + 8 > c.x + c.w / 2 ? 1 : -1;
-          c.smashT = 0.36; c.smashTarget = [tx, ty]; c.vx = 0;
+          c.smashT = 0.36; c.smashTarget = [tx, ty]; c.punched = false; c.vx = 0;
         } else { this.toast('Edvin är för klen – byt till Hedda (TAB)', 2); this.sound.nope(); }
         return;
+      }
+      // Hedda kan alltid slå, även i luften framför sig
+      if (c.stats.strong && c.smashT <= 0 && c.onGround) {
+        c.smashT = 0.36; c.smashTarget = null; c.punched = false; c.vx = 0;
+      }
+    }
+
+    // Slag som inte träffar en sprucken vägg: låda skakar, annars ett svisch i luften
+    punchAir(c) {
+      const fx = c.x + c.w / 2 + c.facing * 18, fy = c.y + 12;
+      const hitBlock = this.blocks.find(b => fx >= b.x && fx <= b.x + TILE && fy >= b.y - 4 && fy <= b.y + TILE);
+      this.sound.ensure();
+      if (hitBlock) {
+        hitBlock.wobble = 1;
+        this.shake = Math.max(this.shake, 2);
+        this.sound.thud();
+        for (let i = 0; i < 6; i++) this.particles.push({ x: fx, y: fy + Math.random() * 6, vx: -c.facing * (20 + Math.random() * 40), vy: -Math.random() * 60, life: 0.35, col: '#d29c62', w: 1, h: 1, g: 0.5 });
+      } else {
+        this.sound.whoosh();
+        for (let i = 0; i < 4; i++) this.particles.push({ x: fx - c.facing * 4, y: fy + i * 2 - 2, vx: c.facing * (60 + i * 15), vy: 0, life: 0.14, col: 'rgba(255,255,255,0.8)', w: 3, h: 1, g: 0 });
       }
     }
 
