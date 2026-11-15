@@ -2,3 +2,6 @@
 tools/review/
 # Referensfoton hålls privata
 bilder_pa_karaktarer/
+# Lokala arbetsanteckningar (beskriver referensfotona)
+PLAN.md
+GRANSKNING.md
