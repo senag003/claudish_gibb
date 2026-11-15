@@ -124,6 +124,32 @@
   }
   motion('edvin'); motion('hedda');
 
+  // 5b. Fångstanimation – filmremsa
+  h2('Fångstanimation (3x): utsnitt vid olika tidpunkter efter att Edvin rör hönan');
+  {
+    const r = row();
+    const times = [0.15, 0.4, 0.6, 0.75, 0.9, 1.15, 1.6, 2.2, 3.15];
+    times.forEach(T => {
+      const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+      const g = new window.Game(cv, window.LEVELS, S);
+      g.sound.enabled = false; g.state = 'play'; g.loadLevel(0);
+      const e = g.chars[0], hd = g.chars[1];
+      // ställ Edvin på hönans avsats, precis bredvid hönan
+      e.x = g.hen.x - 14; e.y = g.hen.y + 16 - e.h; e.vy = 0; e.onGround = true;
+      hd.x = e.x - 60; hd.y = 13 * 16 - hd.h + 32 > e.y ? 13 * 16 - hd.h : hd.y;
+      g.camX = g.clampCam(e.x - W / 2);
+      g.startCatch(e);
+      for (let t = 0; t < T; t += 1 / 60) g.update(1 / 60);
+      g.render();
+      // utsnitt runt Edvin
+      const oy = H - window.GAME_CONST.WORLD_H;
+      const sx = Math.round(e.x + e.w / 2 - g.camX) - 60, sy = Math.round(e.y + e.h) + oy - 100;
+      const c2 = document.createElement('canvas'); c2.width = 120; c2.height = 110;
+      c2.getContext('2d').drawImage(cv, sx, sy, 120, 110, 0, 0, 120, 110);
+      cell(r, c2, 3, 't=' + T + ' s');
+    });
+  }
+
   // 6. Spelskärmar
   h2('Spelskärmar (2x)');
   function shot(setup, label) {

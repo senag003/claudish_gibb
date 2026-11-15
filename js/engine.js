@@ -158,7 +158,7 @@
       this.grid = lv.map.map(r => r.split(''));
       this.blocks = []; this.chars = []; this.triggers = {}; this.doors = {};
       this.hen = null;
-      this.winT = 0; this.deathT = 0; this.levelT = 0;
+      this.winT = 0; this.deathT = 0; this.levelT = 0; this.catchAnim = null;
       this.hintT = 7;
       this.tipsSeen = {};
       this.particles = [];
@@ -261,10 +261,25 @@
 
       if (this.winT > 0) {
         this.winT -= dt;
-        this.chars.forEach(c => { c.input = null; this.control(c, {}, dt); this.physics(c, dt); this.animate(c, dt); });
-        this.updateHen(dt);
+        const ca = this.catchAnim;
+        this.chars.forEach(c => {
+          if (ca && c === ca.c) return;           // fångaren styrs av animationen
+          c.prevX = c.x; c.prevY = c.y;
+          this.control(c, {}, dt); this.physics(c, dt); this.animate(c, dt);
+          // den andra hoppar av glädje när hönan är fångad
+          if (ca && ca.caught && c.onGround) {
+            c.cheerCool = (c.cheerCool || 0) - dt;
+            if (c.cheerCool <= 0) { c.vy = -175; c.onGround = false; c.cheerCool = 0.5; c.facing = ca.c.x > c.x ? 1 : -1; }
+          }
+        });
+        if (ca) this.updateCatch(dt); else this.updateHen(dt);
         this.updateParticles(dt);
+        if (ca) {
+          const target = this.clampCam(ca.c.x + ca.c.w / 2 - W / 2);
+          this.camX += (target - this.camX) * Math.min(1, dt * 4);
+        }
         if (this.winT <= 0) {
+          this.catchAnim = null;
           if (this.levelIndex + 1 < this.levels.length) this.loadLevel(this.levelIndex + 1);
           else { this.state = 'done'; this.loadLevel(0); this.placeTitleHen(); }
         }
@@ -725,14 +740,83 @@
       if (!h) return;
       const hr = { x: h.x + 2, y: h.y + 4, w: 12, h: 12 };
       for (const c of this.chars) {
-        if (this.overlap(hr, c)) {
-          this.winT = 2.2;
-          h.animT = 0; h.frame = 0;
-          this.sound.ensure(); this.sound.win();
-          this.toast('Hönan hittad!', 2.2);
-          for (let i = 0; i < 24; i++) this.particles.push({ x: h.x + 8, y: h.y + 8, vx: (Math.random() - 0.5) * 140, vy: -Math.random() * 140, life: 1 + Math.random(), col: ['#f7f1e6', '#f2d25a', '#f0a3c2', '#b6ef3a'][i % 4], w: 1, h: 1, g: 0.4 });
-          return;
+        if (this.overlap(hr, c)) { this.startCatch(c); return; }
+      }
+    }
+
+    // ----- Fångstanimation -----
+    // 0–0.35 s: hönan blir skrämd ("!") och flaxar upp
+    // 0.35–0.8 s: hon flyger i en båge och landar på fångarens huvud
+    // 0.8– s: fångaren jublar och hoppar med hönan på huvudet, konfetti; slutet tonas ut
+    startCatch(c) {
+      const h = this.hen;
+      this.winT = 3.4;
+      this.catchAnim = { c, t: 0, sx: h.x, sy: h.y, caught: false, lastHop: 0 };
+      c.vx = 0; c.vy = 0; c.pushing = 0; c.smashT = 0; c.prejumpT = 0;
+      c.facing = (h.x + 8 > c.x + c.w / 2) ? 1 : -1;
+      h.facing = -c.facing; h.walkTo = null; h.hop = 0;
+      this.sound.ensure(); this.sound.cluck();
+      this.ui.tip = ''; this.hintT = 0;
+    }
+
+    updateCatch(dt) {
+      const ca = this.catchAnim, c = ca.c, h = this.hen;
+      ca.t += dt;
+      const t = ca.t;
+      const fx = c.x + c.w / 2, fy = c.y + c.h;
+      // hönans vingslag
+      h.animT += dt;
+      if (h.animT > 0.08) { h.animT = 0; h.frame = (h.frame + 1) % 2; }
+      h.anim = 'flap'; h.hop = 0;
+
+      if (t < 0.35) {
+        const p = t / 0.35;
+        h.x = ca.sx; h.y = ca.sy - Math.sin(p * Math.PI) * 10;
+        c.anim = 'land'; c.frame = 0; c.drawDy = 0;
+      } else if (t < 0.8) {
+        const p = (t - 0.35) / 0.45;
+        const tx = fx - 8, ty = fy - 50;
+        const e = p * p * (3 - 2 * p);
+        h.x = ca.sx + (tx - ca.sx) * e;
+        h.y = ca.sy + (ty - ca.sy) * e - Math.sin(p * Math.PI) * 24;
+        h.facing = c.facing;
+        c.anim = 'land'; c.frame = 0; c.drawDy = 0;
+      } else {
+        if (!ca.caught) {
+          ca.caught = true;
+          this.sound.win();
+          this.toast('Fångad!', 2.4);
+          this.spawnRing(fx, fy - 40, '#fff3c4');
+          this.confetti(fx, fy - 44, 30);
         }
+        // jubelhopp med hönan på huvudet
+        const period = 0.46;
+        const ph = ((t - 0.8) % period) / period;
+        const hop = Math.sin(ph * Math.PI) * 9;
+        const hopIndex = Math.floor((t - 0.8) / period);
+        if (hopIndex !== ca.lastHop) {
+          ca.lastHop = hopIndex;
+          this.spawnDust(fx, fy, 3);
+          this.sound.step(false);
+          if (hopIndex % 2 === 0) this.confetti(fx, fy - 50, 10);
+        }
+        c.drawDy = -Math.round(hop);
+        c.anim = 'cheer';
+        c.frame = hop > 1.5 ? 0 : 1;
+        const headDrop = c.frame === 1 ? 2 : 0;
+        h.x = fx - 8;
+        h.y = fy + c.drawDy - 50 + headDrop;
+        h.facing = c.facing;
+        if (Math.random() < dt * 6) this.particles.push({ x: h.x + 8, y: h.y + 6, vx: (Math.random() - 0.5) * 50, vy: -20 - Math.random() * 30, life: 1.3, col: Math.random() > 0.5 ? '#f7f1e6' : '#d9945a', w: 1, h: 1, g: 0.12, feather: true });
+      }
+    }
+
+    confetti(x, y, n) {
+      const cols = ['#f2d25a', '#f0a3c2', '#b6ef3a', '#6f8fd6', '#fff3c4', '#d8403d'];
+      for (let i = 0; i < n; i++) {
+        const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.2;
+        const v = 60 + Math.random() * 110;
+        this.particles.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 1.2 + Math.random() * 0.8, col: cols[i % cols.length], w: Math.random() > 0.5 ? 2 : 1, h: 1, g: 0.25, feather: true });
       }
     }
 
@@ -819,9 +903,12 @@
       ctx.translate(-camX, H - WORLD_H);   // banan ligger längst ner, extra höjd blir himmel
       this.drawTiles(ctx, camX);
       this.drawBlocks(ctx);
-      this.drawHen(ctx);
+      const henOnTop = this.catchAnim && this.catchAnim.t > 0.35;   // hönan på huvudet ritas ovanpå
+      if (!henOnTop) this.drawHen(ctx);
       const order = [1 - this.active, this.active];
+      if (this.catchAnim) order.sort((a, b) => (this.chars[a] === this.catchAnim.c ? 1 : 0) - (this.chars[b] === this.catchAnim.c ? 1 : 0));
       order.forEach(i => this.drawCharacter(ctx, this.chars[i], i === this.active && this.state === 'play'));
+      if (henOnTop) this.drawHen(ctx);
       this.drawParticles(ctx);
       ctx.restore();
 
@@ -830,6 +917,7 @@
 
       if (this.flash > 0) { ctx.fillStyle = `rgba(255,255,255,${this.flash * 0.6})`; ctx.fillRect(0, 0, W, H); this.flash = Math.max(0, this.flash - 0.08); }
       if (this.deathT > 0) { ctx.fillStyle = `rgba(20,16,30,${Math.min(1, (1 - this.deathT) * 1.6)})`; ctx.fillRect(0, 0, W, H); }
+      if (this.winT > 0 && this.winT < 0.45) { ctx.fillStyle = `rgba(20,16,30,${1 - this.winT / 0.45})`; ctx.fillRect(0, 0, W, H); }
       if (this.state === 'play' && this.levelT < 0.5) { ctx.fillStyle = `rgba(20,16,30,${1 - this.levelT * 2})`; ctx.fillRect(0, 0, W, H); }
 
       // Text till HTML-lagret
@@ -966,8 +1054,17 @@
       const frames = set[h.anim] || set.idle;
       const img = frames[h.frame % frames.length];
       const x = Math.round(h.x), y = Math.round(h.y - h.hop);
-      ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.fillRect(Math.round(h.x) + 4, Math.round(h.y) + 15, 9, 1);
+      const ca = this.catchAnim;
+      if (!ca) { ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.fillRect(Math.round(h.x) + 4, Math.round(h.y) + 15, 9, 1); }
       ctx.drawImage(img, x, y);
+      // skrämd: "!" i en pratbubbla
+      if (ca && ca.t < 0.45) {
+        const bx = x + 4, by = y - 13;
+        ctx.fillStyle = '#1e1e28'; ctx.fillRect(bx - 1, by - 1, 9, 11);
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(bx, by, 7, 9);
+        ctx.fillStyle = '#d8403d'; ctx.fillRect(bx + 3, by + 1, 1, 5); ctx.fillRect(bx + 3, by + 7, 1, 1);
+        ctx.fillStyle = '#1e1e28'; ctx.fillRect(bx + 2, by + 10, 3, 1); ctx.fillRect(bx + 3, by + 11, 1, 1);
+      }
       // liten studsande markering första sekunderna så man ser målet
       if (this.state === 'play' && this.levelT < 4 && this.winT <= 0) {
         const by = y - 8 + Math.round(Math.sin(this.time * 5) * 2);
@@ -981,8 +1078,10 @@
       const frames = set[c.anim] || set.idle;
       const img = frames[c.frame % frames.length];
       const fx = Math.round(c.x + c.w / 2), fy = Math.round(c.y + c.h);
+      const dy = (this.catchAnim && this.catchAnim.c === c) ? (c.drawDy || 0) : 0;
       ctx.fillStyle = 'rgba(0,0,0,0.22)'; ctx.fillRect(fx - 6, fy - 1, 12, 2);
-      ctx.drawImage(img, fx - 16, fy - 40);
+      ctx.drawImage(img, fx - 16, fy - 40 + dy);
+      if (this.catchAnim) isActive = false;
       if (isActive) {
         const bob = Math.round(Math.sin(this.time * 6) * 1.5);
         const ax = fx, ay = fy - 44 + bob;
