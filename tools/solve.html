@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<title>Lösningsbot – Edvin & Hedda</title>
+<style>
+  body { margin: 0; padding: 14px; background: #1e1e28; color: #eee; font: 13px/1.5 Consolas, monospace; }
+  .pass { color: #b6ef3a; } .fail { color: #ff6b66; } h3 { margin: 10px 0 2px; }
+  canvas { image-rendering: pixelated; display: block; margin: 4px 0 10px; }
+  pre { margin: 0; color: #bbb; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="../js/characters.js"></script>
+<script src="../js/sprites.js"></script>
+<script src="../js/levels.js"></script>
+<script src="../js/engine.js"></script>
+<script>
+// Spelar igenom varje bana med riktig fysik och kontrollerar att hönan nås.
+// Dessutom fusk-tester: saker som INTE ska gå (t.ex. Hedda hoppar upp på avsatsen själv).
+(function () {
+  const root = document.getElementById('root');
+  const { W, H } = window.GAME_CONST;
+  const S = window.SPRITES.build(W, H);
+  const DT = 1 / 60;
+
+  function newGame(i) {
+    const g = new window.Game(document.createElement('canvas'), window.LEVELS, S);
+    g.sound.enabled = false; g.state = 'play'; g.loadLevel(i);
+    return g;
+  }
+  const cur = g => g.chars[g.active];
+  const cx = c => c.x + c.w / 2;
+  const tileC = tx => tx * 16 + 8;
+  function clearKeys(g) { Object.assign(g.keys, { left: false, right: false, jump: false, jumpPressed: false, actionPressed: false, swapPressed: false }); }
+
+  // Steg: returnerar true när klart. Varje steg har timeout.
+  const steps = {
+    swap: () => (g, st) => { if (!st.done) { g.keys.swapPressed = true; st.done = true; return false; } return true; },
+    act: () => (g, st) => { if (!st.done) { g.keys.actionPressed = true; st.done = true; return false; } return (st.w = (st.w || 0) + 1) > 25; },
+    wait: n => (g, st) => (st.n = (st.n || 0) + 1) >= n,
+    go: tx => (g, st) => {
+      const c = cur(g); const d = tileC(tx) - cx(c);
+      if (Math.abs(d) < 2.5 && c.onGround) { if (Math.abs(c.vx) < 5) return true; return false; }
+      if (Math.abs(d) < 2.5) return false;
+      g.keys.right = d > 0; g.keys.left = d < 0;
+      // hoppa automatiskt över ett hinder (låda) om vi står still mot det
+      if (c.onGround && Math.abs(c.vx) < 1 && (st.stuck = (st.stuck || 0) + 1) > 8) { g.keys.jumpPressed = true; g.keys.jump = true; st.stuck = 0; st.hold = 18; }
+      if (st.hold > 0) { g.keys.jump = true; st.hold--; }
+      return false;
+    },
+    // hoppa och styr i luften mot tile tx; klart när landat nära
+    jumpTo: tx => (g, st) => {
+      const c = cur(g);
+      if (!st.started) { g.keys.jumpPressed = true; g.keys.jump = true; st.started = true; st.f = 0; return false; }
+      st.f++;
+      g.keys.jump = st.f < 30;
+      const d = tileC(tx) - cx(c);
+      if (Math.abs(d) > 3) { g.keys.right = d > 0; g.keys.left = d < 0; }
+      return st.f > 10 && c.onGround && Math.abs(d) < 6;
+    },
+    jumpUp: () => (g, st) => {
+      const c = cur(g);
+      if (!st.started) { g.keys.jumpPressed = true; g.keys.jump = true; st.started = true; st.f = 0; return false; }
+      st.f++; g.keys.jump = st.f < 30;
+      return st.f > 10 && c.onGround;
+    },
+    pushTo: (tx, blockIndex) => (g, st) => {
+      const b = g.blocks[blockIndex || 0];
+      if (b.tx === tx && !b.move) return true;
+      g.keys.right = b.tx < tx; g.keys.left = b.tx > tx;
+      return false;
+    },
+    expect: (fn, msg) => (g, st) => { if (!fn(g)) throw new Error('Förväntan misslyckades: ' + msg); return true; }
+  };
+
+  function runScript(levelIdx, script, maxFrames) {
+    const g = newGame(levelIdx);
+    let i = 0, st = {}, f = 0, log = [];
+    while (f < (maxFrames || 6000)) {
+      clearKeys(g);
+      if (g.winT > 0) return { ok: true, g, f, log };
+      if (g.deathT > 0) return { ok: false, g, f, log: log.concat('DOG vid steg ' + i) };
+      if (i < script.length) {
+        const [name, ...args] = script[i];
+        let done;
+        try { done = steps[name](...args)(g, st); }
+        catch (e) { return { ok: false, g, f, log: log.concat(e.message + ' (steg ' + i + ')') }; }
+        st.t = (st.t || 0) + 1;
+        if (st.t > 900) return { ok: false, g, f, log: log.concat(`TIMEOUT steg ${i}: ${name}(${args.join(',')}) – ${cur(g).type} x=${(cx(cur(g)) / 16).toFixed(2)} y=${((cur(g).y + cur(g).h) / 16).toFixed(2)} | triggers ${Object.entries(g.triggers).map(([k, t]) => k + ':' + (t.on ? 'PÅ' : 'av')).join(' ')} | dörrar ${Object.entries(g.doors).map(([k, d]) => k + ':' + d.open.toFixed(2)).join(' ')} | ${g.chars.map(c => c.type + '@' + (cx(c) / 16).toFixed(1) + ',' + ((c.y + c.h) / 16).toFixed(1) + (c.onGround ? 'G' : 'L')).join(' ')}`) };
+        if (done) { log.push(`steg ${i} ${name}(${args.join(',')}) klart @${f} – ${cur(g).type} vid tile ${(cx(cur(g)) / 16).toFixed(1)}, fot ${((cur(g).y + cur(g).h) / 16).toFixed(2)}`); i++; st = {}; }
+      }
+      g.update(DT); f++;
+    }
+    return { ok: false, g, f, log: log.concat('slut på tid') };
+  }
+
+  // Fusk-test: spelar ett skript och kollar att figuren INTE når en viss höjd/plats
+  function cheatTest(levelIdx, script, check) {
+    const g = newGame(levelIdx);
+    let i = 0, st = {}, best = 0;
+    for (let f = 0; f < 1500; f++) {
+      clearKeys(g);
+      if (i < script.length) {
+        const [name, ...args] = script[i];
+        let done = false;
+        try { done = steps[name](...args)(g, st); } catch (e) { }
+        st.t = (st.t || 0) + 1;
+        if (done || st.t > 300) { i++; st = {}; }
+      }
+      g.update(DT);
+      if (check(g)) return { ok: false };
+    }
+    return { ok: true };
+  }
+
+  const SOLUTIONS = [
+    [ // Bana 1: spak (Edvin) -> vägg (Hedda) -> Hedda på plattan, Edvin till hönan
+      ['go', 5], ['jumpTo', 3], ['go', 2], ['act'], ['expect', g => g.triggers['1'].on, 'spaken på'],
+      ['go', 13], ['wait', 20], ['go', 19],
+      ['swap'], ['go', 20], ['act'], ['wait', 30], ['expect', g => g.tileAt(21, 12) === '.', 'väggen borta'],
+      ['go', 25], ['expect', g => g.triggers['2'].on, 'Hedda på plattan'],
+      ['swap'], ['wait', 20], ['go', 31], ['jumpTo', 34], ['go', 35]
+    ],
+    [ // Bana 2: låda på platta 1, Hedda på platta 2, Edvin drar spak 3, hoppar gropen, drar spak 4, Hedda slår vägg, Edvin upp
+      ['swap'], ['go', 6], ['pushTo', 11], ['expect', g => g.triggers['1'].on, 'platta 1 nere'],
+      ['jumpTo', 13], ['expect', g => g.triggers['2'].on && g.triggers['1'].on, 'båda plattorna nere'],
+      ['swap'], ['wait', 20], ['go', 19], ['act'], ['expect', g => g.triggers['3'].on, 'spak 3 på'],
+      ['go', 21], ['jumpTo', 28], ['go', 30], ['act'], ['expect', g => g.triggers['4'].on, 'bron på'],
+      ['wait', 20],
+      ['swap'], ['go', 33], ['act'], ['wait', 30], ['expect', g => g.tileAt(34, 12) === '.', 'väggen borta'],
+      ['swap'], ['go', 37], ['jumpTo', 40], ['go', 43]
+    ],
+    [ // Bana 3: stapla -> Hedda vid gallret -> knapp -> båda in -> Edvin på plattan -> Hedda knuffar lådan över bron -> trippelstapel
+      ['swap'], ['go', 6],
+      ['swap'], ['go', 6], ['jumpUp'], ['expect', g => g.chars[0].standingOn === g.chars[1], 'Edvin på Heddas huvud'],
+      ['jumpTo', 3], ['expect', g => g.chars[0].y + g.chars[0].h <= 8 * 16 + 1, 'Edvin uppe på avsatsen'],
+      ['swap'], ['go', 17],
+      ['swap'], ['go', 3], ['act'], ['go', 20], ['expect', g => g.triggers['2'].on, 'Edvin på plattan, bron uppe'],
+      ['swap'], ['go', 21], ['pushTo', 40], ['expect', g => g.blocks[0].tx === 40, 'lådan framme'],
+      ['go', 39], ['jumpTo', 40],
+      ['swap'], ['go', 24], ['jumpTo', 31], ['go', 38], ['jumpTo', 40], ['expect', g => g.chars[0].standingOn === g.chars[1], 'Edvin på Hedda på lådan'],
+      ['jumpTo', 43], ['go', 45]
+    ]
+  ];
+
+  // Fysikkontroll: räknar ut hopphöjder ur STATS och jämför med vad banorna kräver
+  function physicsTable() {
+    const ST = window.GAME_CONST.STATS, G = 900, HH = window.GAME_CONST.HIT_H;
+    const hgt = s => s.jump * s.jump / (2 * G * s.gravity) / 16;
+    const air = s => 2 * s.jump / (G * s.gravity);
+    const e = hgt(ST.edvin), h = hgt(ST.hedda);
+    return [
+      ['Edvin hopphöjd', e, '> 3 (bana 1, 2) och < 5', e > 3 && e < 5],
+      ['Hedda hopphöjd', h, '> 1 (låda) och < 2', h > 1 && h < 2],
+      ['Edvin på Hedda', e + HH / 16, '> 5 och < 6', e + HH / 16 > 5 && e + HH / 16 < 6],
+      ['Edvin på Hedda på låda', 1 + e + HH / 16, '> 6', 1 + e + HH / 16 > 6],
+      ['Edvin på låda', 1 + e, '< 5 och < 6', 1 + e < 5],
+      ['Edvin hopplängd (tiles)', air(ST.edvin) * ST.edvin.speed / 16, '> 4 + 0,75 (grop 4)', air(ST.edvin) * ST.edvin.speed / 16 > 4.75],
+      ['Hedda hopplängd max (tiles)', air(ST.hedda) * ST.hedda.speed / 16, '< 4 - 0,75 (grop 4)', air(ST.hedda) * ST.hedda.speed / 16 < 3.25]
+    ];
+  }
+
+  const CHEATS = [
+    ['Bana 1: Hedda når INTE avsatsen (3 hög) själv', 0, [['swap'], ['go', 5], ['jumpTo', 3]], g => g.chars[1].y + g.chars[1].h <= 10 * 16 + 1],
+    ['Bana 1: Hedda når INTE hönans avsats (2 hög)', 0, [['go', 5], ['jumpTo', 3], ['go', 2], ['act'], ['swap'], ['go', 20], ['act'], ['swap'], ['go', 25], ['swap'], ['go', 31], ['jumpTo', 34]], g => g.chars[1].y + g.chars[1].h <= 11 * 16 + 1],
+    ['Bana 2: Hedda hoppar INTE över spikgropen', 1, [['swap'], ['go', 6], ['pushTo', 11], ['jumpTo', 13], ['swap'], ['go', 19], ['act'], ['swap'], ['go', 21], ['jumpTo', 28]], g => cx(g.chars[1]) > 27 * 16 && g.chars[1].onGround],
+    ['Bana 2: Gallret öppnas INTE med bara lådan på en platta', 1, [['swap'], ['go', 6], ['pushTo', 11], ['swap'], ['go', 19]], g => cx(g.chars[0]) > 17 * 16],
+    ['Bana 3: Edvin når INTE 5-avsatsen själv', 2, [['go', 6], ['jumpTo', 3]], g => g.chars[0].y + g.chars[0].h <= 8 * 16 + 1 && g.chars[0].onGround],
+    ['Bana 3: Hedda hoppar INTE över gropen', 2, [['swap'], ['go', 6], ['swap'], ['go', 6], ['jumpUp'], ['jumpTo', 3], ['swap'], ['go', 17], ['swap'], ['go', 3], ['act'], ['go', 22], ['swap'], ['go', 24], ['jumpTo', 31]], g => cx(g.chars[1]) > 30 * 16 && g.chars[1].onGround]
+  ];
+
+  // Kör
+  const out = [];
+  SOLUTIONS.forEach((script, i) => {
+    const r = runScript(i, script);
+    const h3 = document.createElement('h3');
+    h3.className = r.ok ? 'pass' : 'fail';
+    h3.textContent = `Bana ${i + 1} (${window.LEVELS[i].name}): ${r.ok ? 'KLARAD' : 'MISSLYCKADES'} efter ${(r.f / 60).toFixed(1)} s spel`;
+    root.appendChild(h3);
+    const pre = document.createElement('pre'); pre.textContent = r.log.join('\n'); root.appendChild(pre);
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    r.g.canvas = cv; r.g.ctx = cv.getContext('2d'); r.g.render();
+    root.appendChild(cv);
+    out.push(r.ok);
+  });
+  const hp = document.createElement('h3'); hp.textContent = 'Fysikkontroll (ur STATS):'; root.appendChild(hp);
+  physicsTable().forEach(([label, v, req, ok]) => {
+    const d = document.createElement('div'); d.className = ok ? 'pass' : 'fail';
+    d.textContent = `${ok ? 'OK ' : 'FEL'} ${label}: ${v.toFixed(2)} (krav ${req})`; root.appendChild(d);
+  });
+  const h = document.createElement('h3'); h.textContent = 'Fusk-tester (ska INTE gå):'; root.appendChild(h);
+  CHEATS.forEach(([label, lvl, script, check]) => {
+    const r = cheatTest(lvl, script, check);
+    const d = document.createElement('div'); d.className = r.ok ? 'pass' : 'fail';
+    d.textContent = (r.ok ? 'OK  ' : 'FUSK GICK  ') + label; root.appendChild(d);
+  });
+  document.title = 'KLAR ' + out.map(x => x ? 'P' : 'F').join('');
+})();
+</script>
+</body>
+</html>

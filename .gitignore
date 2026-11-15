@@ -1,0 +1,4 @@
+# Genererade skärmdumpar (kan innehålla referensfoton)
+tools/review/
+# Referensfoton hålls privata
+bilder_pa_karaktarer/

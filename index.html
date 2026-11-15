@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Edvin & Hedda</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+  :root { --scale: 3; --ink: #1e1e28; --cream: #fff3c4; --paper: #f6f1e8; }
+  html, body { margin: 0; height: 100%; background: #141220; overflow: hidden; }
+  body {
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Press Start 2P', 'Courier New', monospace; color: var(--paper);
+  }
+  #wrap { position: relative; }
+  canvas { width: 100%; height: 100%; display: block; image-rendering: pixelated; image-rendering: crisp-edges; background: #5aa6d6; }
+
+  .ui { position: absolute; pointer-events: none; opacity: 0; transition: opacity .3s; text-align: center; }
+  .ui.show { opacity: 1; }
+  /* tydlig pixelkontur runt all text */
+  .ol {
+    --o: calc(1px * var(--scale));
+    text-shadow:
+      var(--o) 0 0 var(--ink), calc(-1 * var(--o)) 0 0 var(--ink), 0 var(--o) 0 var(--ink), 0 calc(-1 * var(--o)) 0 var(--ink),
+      var(--o) var(--o) 0 var(--ink), calc(-1 * var(--o)) var(--o) 0 var(--ink), var(--o) calc(-1 * var(--o)) 0 var(--ink), calc(-1 * var(--o)) calc(-1 * var(--o)) 0 var(--ink),
+      0 calc(2 * var(--o)) 0 var(--ink);
+  }
+  .panel {
+    background: rgba(20, 16, 30, 0.62);
+    border: calc(1px * var(--scale)) solid #0f0d18;
+    box-shadow: inset 0 0 0 calc(1px * var(--scale)) rgba(255,255,255,0.12);
+    padding: calc(3px * var(--scale)) calc(6px * var(--scale));
+  }
+
+  #titlepanel { left: 50%; top: 9%; transform: translateX(-50%); }
+  body.title-mode #titlepanel { top: 14%; }
+  #title { position: static; font-size: calc(6px * var(--scale)); color: var(--cream); letter-spacing: .04em; }
+  body.title-mode #title { font-size: calc(11px * var(--scale)); color: #fff3c4; }
+  #subtitle { position: static; margin-top: calc(3px * var(--scale)); font-size: calc(4px * var(--scale)); color: #ffffff; }
+  body.title-mode #subtitle { font-size: calc(6px * var(--scale)); margin-top: calc(5px * var(--scale)); color: #ffffff; }
+  body.title-mode #titlepanel { background: #1c1828; padding: calc(7px * var(--scale)) calc(12px * var(--scale)); }
+  /* tjockare kontur på stor titel */
+  body.title-mode #title { --o: calc(2px * var(--scale)); }
+
+  #hint, #tip {
+    left: 50%; transform: translateX(-50%); bottom: calc(4px * var(--scale));
+    max-width: 82%; font-size: calc(3.4px * var(--scale)); line-height: 1.7; color: var(--paper);
+  }
+  #tip { color: #fff3c4; }
+  body.title-mode #hint { bottom: auto; top: 38%; font-size: calc(4px * var(--scale)); animation: blink 1.2s steps(2) infinite; background: none; border: none; box-shadow: none; }
+
+  #toast { left: 50%; transform: translateX(-50%); top: calc(34px * var(--scale)); font-size: calc(4px * var(--scale)); color: var(--cream); }
+  #level { right: calc(6px * var(--scale)); top: calc(7px * var(--scale)); font-size: calc(3.4px * var(--scale)); color: var(--cream); text-align: right; }
+
+  #controls {
+    left: 50%; transform: translateX(-50%); bottom: calc(10px * var(--scale));
+    font-size: calc(5px * var(--scale)); line-height: 2.1; background: #1c1828; color: #e8f2f7; white-space: nowrap; text-align: left;
+  }
+  #controls b { color: #f2d25a; font-weight: normal; }
+  #wardrobe {
+    top: calc(56px * var(--scale)); left: 50%; transform: translateX(-50%); width: calc(196px * var(--scale)); text-align: left;
+    font-size: calc(4px * var(--scale)); background: #1c1828;
+  }
+  .wd-name { color: #f2d25a; font-size: calc(6px * var(--scale)); margin-bottom: calc(6px * var(--scale)); }
+  .wd-row { display: flex; justify-content: space-between; padding: calc(3px * var(--scale)) calc(3px * var(--scale)); color: #9a96ad; }
+  .wd-row.sel { color: #fff3c4; background: rgba(255,255,255,0.08); outline: calc(1px * var(--scale)) solid #f2d25a; }
+  .wd-label { margin-right: calc(6px * var(--scale)); }
+  .wd-help { margin-top: calc(7px * var(--scale)); font-size: calc(2.8px * var(--scale)); color: #c9c5d8; line-height: 1.8; }
+  @keyframes blink { 50% { opacity: .35; } }
+  #error { display: none; position: fixed; left: 0; right: 0; top: 0; padding: 12px; background: #d8403d; color: #fff; font: 14px monospace; white-space: pre-wrap; z-index: 10; }
+</style>
+</head>
+<body>
+  <div id="error"></div>
+  <div id="wrap">
+    <canvas id="game"></canvas>
+    <div id="titlepanel" class="ui panel">
+      <div id="title" class="ol"></div>
+      <div id="subtitle" class="ol"></div>
+    </div>
+    <div id="level" class="ui ol"></div>
+    <div id="toast" class="ui ol"></div>
+    <div id="hint" class="ui ol panel"></div>
+    <div id="tip" class="ui ol panel"></div>
+    <div id="controls" class="ui ol panel">
+      <b>PILAR/WASD</b> gå &nbsp; <b>MELLANSLAG</b> hoppa<br>
+      <b>TAB</b> byt figur &nbsp; <b>E</b> använd / slå &nbsp; <b>R</b> börja om<br>
+      <b>C</b> garderob – byt kläder och skor
+    </div>
+    <div id="wardrobe" class="ui ol panel"></div>
+  </div>
+  <script src="js/characters.js"></script>
+  <script src="js/sprites.js"></script>
+  <script src="js/levels.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
