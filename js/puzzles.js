@@ -520,14 +520,17 @@
   };
 
   // ================= BIRKIN (easter egg) =================
-  G.birkinUnlocked = function () {
-    try { return window.localStorage.getItem('edvin_hedda_birkin') === '1' || !!this._birkinMem; } catch (e) { return !!this._birkinMem; }
+  // Väskan gäller bara under en spelomgång – den måste hittas igen varje gång man börjar från bana 1.
+  G.birkinUnlocked = function () { return !!this._birkinMem; };
+  G.resetBirkin = function () {
+    this._birkinMem = false;
+    if (this.outfit && this.outfit.hedda.bag) { this.outfit.hedda.bag = 0; this.saveOutfit(); }
+    try { window.localStorage.removeItem('edvin_hedda_birkin'); } catch (e) { /* ok */ }
   };
   G.findBirkin = function (c, item) {
     if (c.type !== 'hedda') { this.sound.nope(); this.toast('Den där väskan är nog Heddas...', 2); return; }
     this.items = this.items.filter(i => i !== item);
     const first = !this.birkinUnlocked();
-    try { window.localStorage.setItem('edvin_hedda_birkin', '1'); } catch (e) { /* ok */ }
     this._birkinMem = true;
     this.outfit.hedda.bag = 1; this.saveOutfit();
     const x = c.x + c.w / 2, y = c.y;

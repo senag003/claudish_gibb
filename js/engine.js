@@ -102,6 +102,7 @@
       this.toastT = 0;
       this.wd = { char: 0, row: 0 };
       this.outfit = this.loadOutfit();
+      if (this.resetBirkin) this.resetBirkin();   // ingen väska när spelet startar
       this.sprites.dress('edvin', this.outfit.edvin);
       this.sprites.dress('hedda', this.outfit.hedda);
       this.loadLevel(0);
@@ -298,6 +299,7 @@
         if (k.wardrobePressed) { this.sound.ensure(); this.sound.swap(); this.state = 'wardrobe'; this.consumeKeys(); return; }
         if (k.confirmPressed || k.jumpPressed || (this.state === 'done' && k.restartPressed)) {
           this.sound.ensure();
+          this.resetBirkin();   // ny spelomgång: väskan måste hittas igen
           this.state = 'play';
           this.loadLevel(0);
         }
