@@ -1,6 +1,6 @@
 # Edvin & Hedda – och hönan som rymde
 
-Ett 2D-pixelart-pusselspel i webbläsaren. Byt mellan Edvin (snabb, hoppar högt) och Hedda (stark: knuffar lådor och slår sönder väggar) och samarbeta för att fånga hönan som rymt.
+Ett 2D-pixelart-pusselspel i webbläsaren. Byt mellan Edvin (snabb, hoppar högt och studsar mellan väggar) och Hedda (stark: knuffar lådor, slår sönder väggar och bär tunga saker) och samarbeta genom höga banor för att fånga hönan som rymt.
 
 ## Spela
 
@@ -8,22 +8,24 @@ Ett 2D-pixelart-pusselspel i webbläsaren. Byt mellan Edvin (snabb, hoppar högt
 
 | Tangent | Gör |
 |---|---|
-| Pilar / WASD | Gå |
-| Mellanslag | Hoppa |
+| Pilar / WASD | Gå, klättra i stegar (upp/ner) |
+| Mellanslag | Hoppa (Edvin: hoppa mot en vägg och hoppa igen för att studsa) |
 | TAB | Byt figur |
-| E | Använd spak/knapp. Hedda slår (sönder spruckna väggar) |
+| E | Använd, ta upp, öppna terminal, slå |
+| 1–4 | Välj sak i inventariet |
+| F | Släpp vald sak |
 | R | Börja om banan |
-| C | Garderob: byt tröja, byxor och skor, när som helst |
+| C | Garderob: byt tröja, byxor och skor när som helst |
 
-## Föremål och kretsar
+## Föremål, kretsar och terminaler
 
-E plockar upp, släpper och använder saker. Varje figur bär en sak åt gången. Batteriet är tungt, så bara Hedda orkar bära det. Spakar, plattor, säkringsdosor och kortläsare är kopplade med kablar via logikgrindar (AND, OR, XOR, NOT) till galler och broar. En gul kabel har ström.
+Edvin och Hedda har var sitt inventarie med 4 platser. Batteriet är tungt, så bara Hedda orkar bära det. Spakar, plattor, uttag, kortläsare och terminaler är kopplade med kablar till galler, broar och hissar. Ibland går kablarna via en logikgrind (AND, OR, XOR eller NOT), och grindens namn står på skylten. En gul kabel har ström. Vid terminalerna väntar små uppgifter: koppla kablar, kalibrera en mätare eller fyll på kylvätska. Med rörposten kan man skicka saker genom väggar.
 
 ## Banor
 
-1. **Verkstaden**: laga en trasig spak, en AND-grind, och ett batteri som både driver en bro och håller en NOT-grind stängd.
-2. **Binärlåset**: fyra spakar är bitar, och grinden öppnas när de visar rätt hexadecimala tal.
-3. **Strömavbrott**: en säkring och två säkringsdosor. Ordningen spelar roll, och sist kommer en XOR.
+1. **Fabriken**: en hiss som drivs av batteri eller spak, en kabeluppgift, en AND-grind och plankparkour.
+2. **Skilda åt**: Edvin och Hedda börjar på varsin sida av en mur och måste hjälpa varandra genom den med spakar, rörpost, hissar och uppgifter.
+3. **Tornet**: fem våningar med NOT, AND och XOR, tre hissar, studsschakt och parkour.
 
 (Det finns en hemlighet att hitta.)
 
@@ -32,6 +34,6 @@ E plockar upp, släpper och använder saker. Varje figur bär en sak åt gången
 - `js/characters.js`: figurernas pixelgrafik (24×36) och garderobens kläder
 - `js/sprites.js`: bygger figurer, höna, tiles och bakgrund till canvas
 - `js/levels.js`: banorna
-- `js/engine.js`: fysik, pussel, rendering och ljud
-- `js/puzzles.js`: föremål, logikgrindar, kablar, säkringsdosor, kortläsare och en hemlighet
+- `js/engine.js`: fysik, kamera, stegar, väggstudsar, rendering och ljud
+- `js/puzzles.js`: inventarie, logikgrindar, kablar, hissar, rörpost, terminaler med minispel och en hemlighet
 - `js/main.js`: tangentbord, skalning och spel-loop

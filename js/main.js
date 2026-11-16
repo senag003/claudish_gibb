@@ -44,14 +44,17 @@
 
   // Tangenter
   const k = game.keys;
-  const move = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'jump', KeyW: 'jump', Space: 'jump' };
+  // upp/ner hålls (stegar); upp hoppar också när man inte står vid en stege (hanteras i motorn)
+  const move = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', Space: 'jump', KeyE: 'actionHeld', Enter: 'actionHeld' };
   window.addEventListener('keydown', e => {
     const m = move[e.code];
     if (m) e.preventDefault();
     if (e.repeat) return;
     if (m) { k[m] = true; if (m === 'jump') k.jumpPressed = true; }
     if (e.code === 'Tab' || e.code === 'KeyQ' || e.code === 'ShiftLeft') { k.swapPressed = true; e.preventDefault(); }
-    if (e.code === 'KeyE' || e.code === 'Enter' || e.code === 'ArrowDown' || e.code === 'KeyS') { k.actionPressed = true; e.preventDefault(); }
+    if (e.code === 'KeyE' || e.code === 'Enter') { k.actionPressed = true; e.preventDefault(); }
+    if (e.code === 'KeyF') k.dropPressed = true;
+    if (/^Digit[1-4]$/.test(e.code)) k.slotPressed = +e.code.slice(5);
     if (e.code === 'KeyR') k.restartPressed = true;
     // menyknappar (garderob)
     if (e.code === 'ArrowUp' || e.code === 'KeyW') k.upPressed = true;
@@ -64,11 +67,11 @@
     game.sound.ensure();
   });
   window.addEventListener('keyup', e => { const m = move[e.code]; if (m) { k[m] = false; e.preventDefault(); } });
-  window.addEventListener('blur', () => { k.left = k.right = k.jump = false; });
+  window.addEventListener('blur', () => { k.left = k.right = k.jump = k.up = k.down = k.actionHeld = false; });
 
   // UI-synk
   const el = id => document.getElementById(id);
-  const ui = { title: el('title'), subtitle: el('subtitle'), hint: el('hint'), toast: el('toast'), level: el('level'), tip: el('tip') };
+  const ui = { title: el('title'), subtitle: el('subtitle'), hint: el('hint'), toast: el('toast'), level: el('level'), tip: el('tip'), taskTitle: el('tasktitle'), taskHelp: el('taskhelp') };
   const panel = el('titlepanel'), controls = el('controls'), wdEl = el('wardrobe');
   let last = {}, lastWd = '';
   function esc(s) { return String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]); }

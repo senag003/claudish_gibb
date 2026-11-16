@@ -6,8 +6,12 @@
   // Vyns storlek i spelpixlar. Anpassas efter fönstret (main.js) så att hela skärmen fylls
   // med skarpa pixlar: bredare fönster = mer bana i sidled, högre = mer himmel ovanför.
   let W = 448, H = 256;
-  const WORLD_H = 256;              // banorna är 16 tiles höga
+  const WORLD_H = 256;              // basvyns höjd (16 tiles); banor kan vara högre, kameran följer i höjdled
   function setView(w, h) { W = w; H = h; }
+  // Tecken: galler a–d och i–l, broar e–h, utlösare 1–9 och m–z
+  const isGateCh = ch => (ch >= 'a' && ch <= 'd') || (ch >= 'i' && ch <= 'l');
+  const isTrigCh = ch => (ch >= '1' && ch <= '9') || (ch >= 'm' && ch <= 'z');
+  const st0 = c => c.stats.wallJump;   // kan glida längs väggar
   const GRAVITY = 900;
   const MAX_FALL = 360;
 
@@ -15,7 +19,7 @@
   const STATS = {
     edvin: {
       speed: 130, accel: 1400, airAccel: 950, friction: 1500, jump: 320, gravity: 1.0,
-      strong: false, stride: 8, prejump: 0, color: '#6f8fd6', name: 'EDVIN', emotes: ['watch', 'jog']
+      strong: false, stride: 8, prejump: 0, color: '#6f8fd6', name: 'EDVIN', emotes: ['watch', 'jog'], wallJump: true
     },
     hedda: {
       speed: 100, accel: 700, airAccel: 450, friction: 520, jump: 235, gravity: 1.12,
@@ -183,24 +187,28 @@
         else if (ch === 'O') {
           this.hen = { x: x * TILE, y: y * TILE, homeX: x * TILE, facing: -1, anim: 'idle', frame: 0, animT: 0, nextT: 1.2, hop: 0, walkTo: null };
           this.grid[y][x] = '.';
-        } else if (ch >= '1' && ch <= '9') {
+        } else if (isTrigCh(ch)) {
           if (this.triggers[ch]) { this.triggers[ch].cells.push({ x, y }); continue; }   // plattor kan vara flera tiles breda
           const def = (lv.triggers || {})[ch] || { type: 'lever' };
           this.triggers[ch] = {
             type: def.type, time: def.time || 4, on: !!def.on, timer: 0, x, y, lastTick: 0,
-            broken: !!def.broken, accepts: def.accepts || [], holds: null, cells: [{ x, y }]
+            broken: !!def.broken, accepts: def.accepts || [], holds: null, cells: [{ x, y }],
+            task: def.task, to: def.to, done: false
           };
-        } else if ((ch >= 'a' && ch <= 'd') || (ch >= 'e' && ch <= 'h')) {
-          if (!this.doors[ch]) this.doors[ch] = { kind: ch <= 'd' ? 'gate' : 'bridge', open: 0, target: 0, cells: [], expr: (lv.logic || {})[ch] || '' };
+        } else if (isGateCh(ch) || (ch >= 'e' && ch <= 'h')) {
+          if (!this.doors[ch]) this.doors[ch] = { kind: isGateCh(ch) ? 'gate' : 'bridge', open: 0, target: 0, cells: [], expr: (lv.logic || {})[ch] || '' };
           this.doors[ch].cells.push({ x, y });
         }
       }
       this.loadItems(lv);
+      this.loadLifts(lv);
+      this.taskUI = null;
       // dörrar som är öppna från start ska inte animeras upp
       for (const key in this.doors) { const d = this.doors[key]; d.target = this.evalLogic(d.expr) ? 1 : 0; d.open = d.target; }
       this.chars.sort((a, b) => (a.type === 'edvin' ? -1 : 1));
       this.active = 0;
       this.camX = this.clampCam(this.chars[0].x - W / 2);
+      this.camY = this.clampCamY(this.chars[0].y - H * 0.55);
     }
 
     makeChar(type, tx, ty) {
@@ -211,11 +219,31 @@
         anim: 'idle', frame: 0, animT: 0, stepAcc: 0,
         coyote: 0, jumpBuf: 0, prejumpT: 0,
         pushing: 0, pushHold: 0, landT: 0, smashT: 0, smashTarget: null,
-        standingOn: null, prevX: 0, prevY: 0, input: null, idleT: 0
+        standingOn: null, prevX: 0, prevY: 0, input: null, idleT: 0,
+        inv: [], sel: 0, climbing: false, wallT: 0, wallDir: 0, lastWallDir: 0, pickT: 0, dropT: 0, onLift: null
       };
     }
 
     clampCam(x) { return Math.max(0, Math.min(this.cols * TILE - W, x)); }
+    // Kameran i höjdled. Är banan lägre än vyn ligger den längst ner (negativt värde = extra himmel).
+    clampCamY(y) {
+      const maxY = this.rows * TILE - H;
+      if (maxY <= 0) return maxY;
+      return Math.max(0, Math.min(maxY, y));
+    }
+    tileIs(tx, ty, chars) { return chars.indexOf(this.tileAt(tx, ty)) >= 0; }
+    // Står figurens mittlinje i en stege?
+    onLadder(c) {
+      const tx = Math.floor((c.x + c.w / 2) / TILE);
+      const y0 = Math.floor((c.y + 4) / TILE), y1 = Math.floor((c.y + c.h - 1) / TILE);
+      for (let ty = y0; ty <= y1; ty++) if (this.tileIs(tx, ty, 'LT')) return true;
+      return false;
+    }
+    // Står figuren ovanpå en stegtopp (för att klättra ner)?
+    aboveLadder(c) {
+      const tx = Math.floor((c.x + c.w / 2) / TILE), ty = Math.floor((c.y + c.h + 1) / TILE);
+      return c.onGround && this.tileIs(tx, ty, 'T');
+    }
 
     // ----- Kollision -----
     tileAt(tx, ty) {
@@ -226,7 +254,7 @@
     isSolidTile(tx, ty) {
       const t = this.tileAt(tx, ty);
       if (t === '#' || t === 'S' || t === 'C' || t === 'X') return true;
-      if (t >= 'a' && t <= 'd') return this.doors[t].open < 0.9;
+      if (isGateCh(t)) return this.doors[t].open < 0.9;
       if (t >= 'e' && t <= 'h') return this.doors[t].open > 0.5;
       return false;
     }
@@ -240,6 +268,10 @@
         if (b === ignoreBlock) continue;
         const br = { x: b.x, y: b.y, w: TILE, h: TILE };
         if (this.overlap(r, br)) return Object.assign(br, { block: b });
+      }
+      for (const L of (this.lifts || [])) {
+        const lr = { x: L.x, y: L.y, w: L.w, h: L.h };
+        if (this.overlap(r, lr)) return Object.assign(lr, { lift: L });
       }
       return null;
     }
@@ -296,6 +328,8 @@
         if (ca) {
           const target = this.clampCam(ca.c.x + ca.c.w / 2 - W / 2);
           this.camX += (target - this.camX) * Math.min(1, dt * 4);
+          const ty = this.clampCamY(ca.c.y - H * 0.5);
+          this.camY += (ty - this.camY) * Math.min(1, dt * 4);
         }
         if (this.winT <= 0) {
           this.catchAnim = null;
@@ -323,6 +357,8 @@
         return;
       }
       if (k.restartPressed) { this.loadLevel(this.levelIndex); this.consumeKeys(); return; }
+      // Minispel vid en terminal: spelet pausas medan uppgiften görs
+      if (this.taskUI) { this.updateTask(dt); this.updateParticles(dt); this.consumeKeys(); return; }
       if (k.swapPressed) {
         this.active = 1 - this.active;
         const c = this.chars[this.active];
@@ -332,6 +368,11 @@
       }
 
       this.chars.forEach(c => { c.prevX = c.x; c.prevY = c.y; });
+      this.updateLifts(dt);
+      // inventariet: välj fack 1–4, släpp vald sak med F
+      const ac = this.chars[this.active];
+      if (k.slotPressed) { ac.sel = Math.min(3, k.slotPressed - 1); this.sound.tick(); }
+      if (k.dropPressed) this.dropItem(ac);
       // Den som står underst uppdateras först så att den som står ovanpå kan följa med
       const order = this.chars.slice().sort((a, b) => (b.y - a.y));
       for (const c of order) {
@@ -357,6 +398,8 @@
       const a = this.chars[this.active];
       const target = this.clampCam(a.x + a.w / 2 - W / 2 + a.facing * 28);
       this.camX += (target - this.camX) * Math.min(1, dt * 5);
+      const targetY = this.clampCamY(a.y + a.h / 2 - H * 0.55);
+      this.camY += (targetY - this.camY) * Math.min(1, dt * 4);
       if (this.shake > 0) this.shake = Math.max(0, this.shake - dt * 25);
       this.consumeKeys();
     }
@@ -365,12 +408,61 @@
       const k = this.keys;
       k.jumpPressed = k.swapPressed = k.actionPressed = k.restartPressed = k.confirmPressed = false;
       k.upPressed = k.downPressed = k.leftPressed = k.rightPressed = k.backPressed = k.wardrobePressed = false;
+      k.dropPressed = false; k.slotPressed = 0;
     }
 
     control(c, input, dt) {
       const st = c.stats;
       c.input = input;
-      const dir = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+      let dir = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+      // Plockar upp något: står still en kort stund
+      if (c.pickT > 0) { c.pickT -= dt; c.vx *= 0.5; c.jumpBuf = 0; return; }
+      if (c.dropT > 0) c.dropT -= dt;
+      if (c.wallT > 0) c.wallT -= dt;
+
+      // ----- Stegar -----
+      const ladder = this.onLadder(c);
+      if (!c.climbing && ((input.up && ladder) || (input.down && (ladder && !c.onGround || this.aboveLadder(c))))) {
+        c.climbing = true; c.vx = 0; c.jumpBuf = 0;
+        if (this.aboveLadder(c) && input.down) { c.y += 2; c.dropT = 0.25; }
+      }
+      if (c.climbing) {
+        if (!ladder && !(input.down && this.aboveLadder(c))) { c.climbing = false; }
+        else {
+          if (input.jumpPressed) { // hoppa av stegen
+            c.climbing = false; c.vy = -st.jump * 0.6; c.vx = dir * st.speed * 0.6;
+            this.sound.jump(!st.strong); return;
+          }
+          const ud = (input.down ? 1 : 0) - (input.up ? 1 : 0);
+          c.vy = ud * 80;
+          c.vx = dir * 45;
+          // dra in mot stegens mitt
+          const lx = Math.floor((c.x + c.w / 2) / TILE) * TILE + TILE / 2 - c.w / 2;
+          if (!dir) c.x += (lx - c.x) * Math.min(1, dt * 12);
+          if (dir) c.facing = dir;
+          c.onGround = false;
+          return;
+        }
+      }
+
+      // Pil upp hoppar när man inte står vid en stege
+      if (input.upPressed && !ladder) input = Object.assign({}, input, { jumpPressed: true, jump: true });
+      if (input.up && !ladder && c.vy < 0) input = Object.assign({}, input, { jump: true });
+      c.input = input;
+
+      // ----- Väggstudsning (Edvin) -----
+      if (st.wallJump && !c.onGround && c.wallT > 0 && input.jumpPressed && c.wallDir !== c.lastWallDir) {
+        c.vy = -st.jump * 0.92;
+        c.vx = -c.wallDir * st.speed;
+        c.facing = -c.wallDir;
+        c.lastWallDir = c.wallDir;
+        c.wallT = 0; c.jumpBuf = 0; c.coyote = 0;
+        this.sound.ensure(); this.sound.jump(true);
+        this.spawnDust(c.x + (c.wallDir > 0 ? c.w : 0), c.y + c.h / 2, 4);
+        return;
+      }
+      if (c.onGround) c.lastWallDir = 0;
+
       if (c.smashT > 0) {
         // slår: står still
         c.vx *= 0.5;
@@ -409,8 +501,11 @@
 
     physics(c, dt) {
       const st = c.stats;
-      if (c.prejumpT > 0) { c.vy = 5; }
+      if (c.climbing) { /* ingen gravitation i stegen */ }
+      else if (c.prejumpT > 0) { c.vy = 5; }
       else c.vy = Math.min(MAX_FALL, c.vy + GRAVITY * st.gravity * dt);
+      // glider långsamt längs väggen (Edvin)
+      if (st.wallJump && !c.onGround && c.wallT > 0 && c.vy > 60 && c.input && ((c.wallDir > 0 && c.input.right) || (c.wallDir < 0 && c.input.left))) c.vy = 60;
       const wasPushing = c.pushing;
       c.pushing = 0;
 
@@ -419,6 +514,8 @@
       let hit = this.collides({ x: nx, y: c.y, w: c.w, h: c.h });
       if (hit) {
         if (c.vx > 0) nx = hit.x - c.w; else if (c.vx < 0) nx = hit.x + hit.w;
+        // väggkontakt i luften (för väggstudsning)
+        if (!c.onGround && !hit.block && !hit.lift && c.vx !== 0) { c.wallDir = c.vx > 0 ? 1 : -1; c.wallT = 0.12; }
         const inDir = c.input && ((c.input.right && hit.x > c.x) || (c.input.left && hit.x < c.x));
         if (hit.block && c.onGround && inDir) {
           c.pushing = hit.x > c.x ? 1 : -1;
@@ -438,11 +535,31 @@
       const wasOnGround = c.onGround;
       c.onGround = false;
       c.standingOn = null;
+      c.onLift = null;
       if (hit) {
-        if (c.vy > 0) { ny = hit.y - c.h; c.onGround = true; }
+        if (c.vy > 0) { ny = hit.y - c.h; c.onGround = true; if (hit.lift) c.onLift = hit.lift; if (c.climbing) c.climbing = false; }
         else if (c.vy < 0) ny = hit.y + hit.h;
         if (c.vy > 0 || c.vy < 0) { this.landing(c, wasOnGround); c.vy = 0; }
-      } else if (c.vy >= 0) {
+      }
+      // Plattformar man hoppar upp igenom (= och stegtoppar T): fasta bara uppifrån
+      if (!c.onGround && c.vy >= 0 && !(c.climbing && c.input && c.input.down) && c.dropT <= 0) {
+        const row = Math.floor((ny + c.h) / TILE);
+        if (oldBottom <= row * TILE + 0.5 && ny + c.h >= row * TILE) {
+          const x0 = Math.floor((c.x + 1) / TILE), x1 = Math.floor((c.x + c.w - 1) / TILE);
+          for (let tx = x0; tx <= x1; tx++) {
+            if (this.tileIs(tx, row, '=T')) {
+              // från stegen: bara när man klättrar upp över toppen
+              if (c.climbing && c.input && c.input.up) break;
+              ny = row * TILE - c.h; c.onGround = true; c.climbing = false; this.landing(c, wasOnGround); c.vy = 0; break;
+            }
+          }
+        }
+      }
+      // ner genom en tunn plattform: håll ner + hoppa
+      if (c.onGround && c.input && c.input.down && c.input.jumpPressed && this.tileIs(Math.floor((c.x + c.w / 2) / TILE), Math.floor((ny + c.h + 1) / TILE), '=')) {
+        c.dropT = 0.25; c.onGround = false; ny += 2;
+      }
+      if (!c.onGround && !hit && c.vy >= 0) {
         // Landa på den andras huvud
         for (const o of this.chars) {
           if (o === c) continue;
@@ -519,6 +636,9 @@
     animate(c, dt) {
       let anim;
       if (c.smashT > 0) anim = 'smash';
+      else if (c.pickT > 0) anim = 'land';
+      else if (c.climbing) anim = 'climb';
+      else if (st0(c) && !c.onGround && c.wallT > 0 && c.vy > 0) anim = 'push';
       else if (c.prejumpT > 0) anim = 'land';
       else if (c.pushing) anim = 'push';
       else if (!c.onGround) anim = c.vy < 0 ? 'jump' : 'fall';
@@ -534,7 +654,10 @@
       }
       if (anim !== c.anim) { c.anim = anim; c.frame = 0; c.animT = 0; c.stepAcc = 0; }
       const frames = this.sprites[c.type].right[anim];
-      if (anim === 'run') {
+      if (anim === 'climb') {
+        c.stepAcc += Math.abs(c.vy) * dt;
+        while (c.stepAcc >= 7) { c.stepAcc -= 7; c.frame = (c.frame + 1) % frames.length; }
+      } else if (anim === 'run') {
         // Frame-byte styrs av tillryggalagd sträcka – fötterna glider aldrig
         c.stepAcc += Math.abs(c.vx) * dt;
         while (c.stepAcc >= c.stats.stride) {
@@ -647,7 +770,7 @@
           }
         } else {
           const below = b.ty + 1;
-          const solidBelow = this.isSolidTile(b.tx, below) || this.blocks.some(o => o !== b && o.tx === b.tx && o.ty === below);
+          const solidBelow = this.isSolidTile(b.tx, below) || this.tileIs(b.tx, below, '=T') || this.blocks.some(o => o !== b && o.tx === b.tx && o.ty === below);
           if (!solidBelow && below < this.rows) {
             const r = { x: b.tx * TILE, y: below * TILE, w: TILE, h: TILE };
             if (!this.chars.some(c => this.overlap(r, c))) {
@@ -927,10 +1050,13 @@
       this.drawBackground(ctx, camX);
 
       ctx.save();
-      ctx.translate(-camX, H - WORLD_H);   // banan ligger längst ner, extra höjd blir himmel
+      const camY = Math.round(this.camY);
+      ctx.translate(-camX, -camY);   // camY < 0 när banan är lägre än vyn: extra himmel ovanför
+      this.drawLiftShafts(ctx);
       this.drawTiles(ctx, camX);
       this.drawCircuits(ctx);
       this.drawLabels(ctx);
+      this.drawLifts(ctx);
       this.drawBlocks(ctx);
       this.drawItems(ctx);
       const henOnTop = this.catchAnim && this.catchAnim.t > 0.35;   // hönan på huvudet ritas ovanpå
@@ -944,6 +1070,7 @@
 
       if (this.state === 'play') { this.drawHUD(ctx); this.drawHUDItems(ctx); }
       ctx.restore();
+      if (this.taskUI) this.drawTask(ctx); else { this.ui.taskTitle = ''; this.ui.taskHelp = ''; }
 
       if (this.flash > 0) { ctx.fillStyle = `rgba(255,255,255,${this.flash * 0.6})`; ctx.fillRect(0, 0, W, H); this.flash = Math.max(0, this.flash - 0.08); }
       if (this.deathT > 0) { ctx.fillStyle = `rgba(20,16,30,${Math.min(1, (1 - this.deathT) * 1.6)})`; ctx.fillRect(0, 0, W, H); }
@@ -975,9 +1102,12 @@
         const y = 16 + (i * 29) % 64;
         ctx.drawImage(img, Math.round(x), y);
       }
+      // parallax i höjdled: när kameran går uppåt sjunker bakgrunden lite
+      const up = Math.max(0, (this.rows * TILE - H) - (this.camY || 0));
       const layer = (img, f, yOff) => {
         const off = ((Math.round(camX * f) % img.width) + img.width) % img.width;
-        ctx.drawImage(img, -off, yOff); ctx.drawImage(img, img.width - off, yOff);
+        const y = yOff + Math.round(up * f * 0.5);
+        ctx.drawImage(img, -off, y); ctx.drawImage(img, img.width - off, y);
       };
       layer(bg.mountains, 0.15, -30);
       layer(bg.hills, 0.3, -24);
@@ -990,7 +1120,9 @@
       const S = this.sprites;
       const x0 = Math.max(0, Math.floor(camX / TILE) - 1), x1 = Math.min(this.cols - 1, Math.ceil((camX + W) / TILE) + 1);
       const tufts = [];
-      for (let ty = 0; ty < this.rows; ty++) for (let tx = x0; tx <= x1; tx++) {
+      const cy = Math.round(this.camY || 0);
+      const y0 = Math.max(0, Math.floor(cy / TILE) - 1), y1 = Math.min(this.rows - 1, Math.ceil((cy + H) / TILE) + 1);
+      for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) {
         const t = this.grid[ty][tx];
         const px = tx * TILE, py = ty * TILE;
         if (t === '#') {
@@ -1004,14 +1136,14 @@
         } else if (t === 'S') {
           ctx.drawImage(S.tile('stone', tx, ty), px, py);
           // väggar som når banans tak fortsätter upp i den extra himlen
-          if (ty === 0) for (let k = 1; k * TILE < H - WORLD_H + TILE; k++) ctx.drawImage(S.tile('stone', tx, -k & 7), px, py - k * TILE);
+          if (ty === 0 && cy < 0) for (let k = 1; k * TILE < -cy + TILE; k++) ctx.drawImage(S.tile('stone', tx, -k & 7), px, py - k * TILE);
         }
         else if (t === 'C') ctx.drawImage(S.tile('cracked', tx, ty), px, py);
         else if (t === 'X') this.drawSecretTile(ctx, tx, ty, px, py);
-        else if (t >= '5' && t <= '9') this.drawTrigger(ctx, this.triggers[t], px, py);
         else if (t === '^') ctx.drawImage(S.tile('spikes', tx, ty), px, py);
-        else if (t >= '1' && t <= '4') this.drawTrigger(ctx, this.triggers[t], px, py);
-        else if (t >= 'a' && t <= 'd') this.drawGateCell(ctx, tx, ty, px, py);
+        else if (t === 'L' || t === 'T' || t === '=') this.drawClimbTile(ctx, t, tx, ty, px, py);
+        else if (isTrigCh(t)) this.drawTrigger(ctx, this.triggers[t], px, py);
+        else if (isGateCh(t)) this.drawGateCell(ctx, tx, ty, px, py);
         else if (t >= 'e' && t <= 'h') this.drawBridgeCell(ctx, this.doors[t], px, py);
       }
       for (const [tx, ty] of tufts) ctx.drawImage(S.tile('tufts', tx, ty), tx * TILE, ty * TILE - 4);

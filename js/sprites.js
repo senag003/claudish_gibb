@@ -78,6 +78,8 @@
         frame(art, L.push2, T.punch || T.push, { upDx: 3, upDy: 1 })
       ]
     };
+    // klättrar i stege: armarna upp, benen växlar
+    anims.climb = [frame(art, L.pass, T.jump), frame(art, L.fall, T.jump, { headDy: 1 }), frame(art, L.down, T.jump), frame(art, L.fall, T.jump, { headDy: 1 })];
     // jubel med armarna upp (när hönan är fångad): i luften / landning
     anims.cheer = [frame(art, L.idle, T.jump), frame(art, L.squat, T.jump, { upDy: 2 })];
     if (T.flex) anims.flex = [frame(art, L.idle, T.flex), frame(art, L.idle, T.flex, { upDy: 1 })];

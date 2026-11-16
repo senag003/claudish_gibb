@@ -67,6 +67,8 @@
   .wd-row.sel { color: #fff3c4; background: rgba(255,255,255,0.08); outline: calc(1px * var(--scale)) solid #f2d25a; }
   .wd-label { margin-right: calc(6px * var(--scale)); }
   .wd-help { margin-top: calc(7px * var(--scale)); font-size: calc(2.8px * var(--scale)); color: #c9c5d8; line-height: 1.8; }
+  #tasktitle { left: 50%; transform: translateX(-50%); top: 14%; font-size: calc(6px * var(--scale)); color: #fff3c4; }
+  #taskhelp { left: 50%; transform: translateX(-50%); bottom: 10%; width: 80%; font-size: calc(3.4px * var(--scale)); line-height: 1.7; color: #e8f2f7; }
   @keyframes blink { 50% { opacity: .35; } }
   #error { display: none; position: fixed; left: 0; right: 0; top: 0; padding: 12px; background: #d8403d; color: #fff; font: 14px monospace; white-space: pre-wrap; z-index: 10; }
 </style>
@@ -84,11 +86,13 @@
     <div id="hint" class="ui ol panel"></div>
     <div id="tip" class="ui ol panel"></div>
     <div id="controls" class="ui ol panel">
-      <b>PILAR/WASD</b> gå &nbsp; <b>MELLANSLAG</b> hoppa<br>
-      <b>TAB</b> byt figur &nbsp; <b>E</b> använd / slå &nbsp; <b>R</b> börja om<br>
-      <b>C</b> garderob – byt kläder när som helst
+      <b>PILAR/WASD</b> gå, klättra &nbsp; <b>MELLANSLAG</b> hoppa<br>
+      <b>TAB</b> byt figur &nbsp; <b>E</b> använd / ta / slå &nbsp; <b>1–4</b> välj sak &nbsp; <b>F</b> släpp<br>
+      <b>R</b> börja om &nbsp; <b>C</b> garderob
     </div>
     <div id="wardrobe" class="ui ol panel"></div>
+    <div id="tasktitle" class="ui ol"></div>
+    <div id="taskhelp" class="ui ol"></div>
   </div>
   <script src="js/characters.js"></script>
   <script src="js/sprites.js"></script>
