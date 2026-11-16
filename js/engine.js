@@ -69,6 +69,9 @@
     lever() { this.tone(220, 0.07, 'square', 0.06, 0.7); setTimeout(() => this.tone(150, 0.08, 'square', 0.06), 70); }
     gate(open) { this.tone(open ? 150 : 240, 0.35, 'sawtooth', 0.035, open ? 1.6 : 0.6); }
     tick() { this.tone(1200, 0.025, 'square', 0.025); }
+    pickup() { this.tone(660, 0.06, 'square', 0.04); setTimeout(() => this.tone(990, 0.07, 'square', 0.04), 50); }
+    drop() { this.tone(330, 0.07, 'square', 0.04, 0.7); }
+    insert() { this.tone(440, 0.05, 'square', 0.05); setTimeout(() => this.tone(880, 0.12, 'triangle', 0.06), 60); }
     hurt() { this.tone(300, 0.3, 'sawtooth', 0.07, 0.3); }
     whoosh() { this.noise(0.12, 0.07, 5000); this.tone(500, 0.08, 'triangle', 0.02, 0.5); }
     nope() { this.tone(180, 0.12, 'square', 0.04, 0.8); }
@@ -116,18 +119,27 @@
     }
     wardrobeLists(name) {
       const O = window.CHARACTER_ART.outfits;
-      return [['Tröja', 'top', O[name].tops], ['Byxor', 'pants', O.pants], ['Skor', 'shoes', O.shoes]];
+      const rows = [['Tröja', 'top', O[name].tops], ['Byxor', 'pants', O.pants], ['Skor', 'shoes', O.shoes]];
+      if (name === 'hedda') {
+        // hemligt tillbehör – syns först när Birkin-väskan hittats
+        rows.push(['Väska', 'bag', this.birkinUnlocked() ? [{ name: 'Ingen' }, { name: 'Birkin bag' }] : [{ name: '??? (hemlig)' }]]);
+      }
+      return rows;
     }
     updateWardrobe() {
       const k = this.keys, w = this.wd;
+      const nameNow = () => (w.char === 0 ? 'edvin' : 'hedda');
       if (k.swapPressed) { w.char = 1 - w.char; this.sound.swap(); }
-      if (k.upPressed) { w.row = (w.row + 2) % 3; this.sound.tick(); }
-      if (k.downPressed) { w.row = (w.row + 1) % 3; this.sound.tick(); }
+      const n = this.wardrobeLists(nameNow()).length;
+      if (w.row >= n) w.row = n - 1;
+      if (k.upPressed) { w.row = (w.row + n - 1) % n; this.sound.tick(); }
+      if (k.downPressed) { w.row = (w.row + 1) % n; this.sound.tick(); }
       const dir = (k.rightPressed ? 1 : 0) - (k.leftPressed ? 1 : 0);
       if (dir) {
-        const name = w.char === 0 ? 'edvin' : 'hedda';
+        const name = nameNow();
         const [, key, list] = this.wardrobeLists(name)[w.row];
         const o = this.outfit[name];
+        if (o[key] === undefined || o[key] >= list.length) o[key] = 0;
         o[key] = (o[key] + dir + list.length) % list.length;
         this.sprites.dress(name, o);
         this.saveOutfit();
@@ -142,10 +154,10 @@
 
     // På titelskärmen pickar hönan bredvid Hedda
     placeTitleHen() {
-      const hd = this.chars[1];
-      this.hen.x = this.hen.homeX = hd.x + 28;
-      this.hen.y = hd.y + hd.h - 16;
-      this.hen.facing = -1;
+      const ed = this.chars[0];
+      this.hen.x = this.hen.homeX = ed.x - 26;
+      this.hen.y = ed.y + ed.h - 16;
+      this.hen.facing = 1;
     }
 
     // ----- Banladdning -----
@@ -171,14 +183,21 @@
         else if (ch === 'O') {
           this.hen = { x: x * TILE, y: y * TILE, homeX: x * TILE, facing: -1, anim: 'idle', frame: 0, animT: 0, nextT: 1.2, hop: 0, walkTo: null };
           this.grid[y][x] = '.';
-        } else if (ch >= '1' && ch <= '4') {
+        } else if (ch >= '1' && ch <= '9') {
+          if (this.triggers[ch]) { this.triggers[ch].cells.push({ x, y }); continue; }   // plattor kan vara flera tiles breda
           const def = (lv.triggers || {})[ch] || { type: 'lever' };
-          this.triggers[ch] = { type: def.type, time: def.time || 4, on: false, timer: 0, x, y, lastTick: 0 };
+          this.triggers[ch] = {
+            type: def.type, time: def.time || 4, on: !!def.on, timer: 0, x, y, lastTick: 0,
+            broken: !!def.broken, accepts: def.accepts || [], holds: null, cells: [{ x, y }]
+          };
         } else if ((ch >= 'a' && ch <= 'd') || (ch >= 'e' && ch <= 'h')) {
-          if (!this.doors[ch]) this.doors[ch] = { kind: ch <= 'd' ? 'gate' : 'bridge', open: 0, target: 0, cells: [], clauses: (lv.conds || {})[ch] || [] };
+          if (!this.doors[ch]) this.doors[ch] = { kind: ch <= 'd' ? 'gate' : 'bridge', open: 0, target: 0, cells: [], expr: (lv.logic || {})[ch] || '' };
           this.doors[ch].cells.push({ x, y });
         }
       }
+      this.loadItems(lv);
+      // dörrar som är öppna från start ska inte animeras upp
+      for (const key in this.doors) { const d = this.doors[key]; d.target = this.evalLogic(d.expr) ? 1 : 0; d.open = d.target; }
       this.chars.sort((a, b) => (a.type === 'edvin' ? -1 : 1));
       this.active = 0;
       this.camX = this.clampCam(this.chars[0].x - W / 2);
@@ -206,7 +225,7 @@
     }
     isSolidTile(tx, ty) {
       const t = this.tileAt(tx, ty);
-      if (t === '#' || t === 'S' || t === 'C') return true;
+      if (t === '#' || t === 'S' || t === 'C' || t === 'X') return true;
       if (t >= 'a' && t <= 'd') return this.doors[t].open < 0.9;
       if (t >= 'e' && t <= 'h') return this.doors[t].open > 0.5;
       return false;
@@ -326,6 +345,7 @@
       if (k.actionPressed) this.doAction(this.chars[this.active]);
 
       this.updateBlocks(dt);
+      this.updateItems(dt);
       this.updateTriggers(dt);
       this.updateDoors(dt);
       this.updateHen(dt);
@@ -589,6 +609,10 @@
     breakWall(tx, ty) {
       let y0 = ty; while (this.tileAt(tx, y0 - 1) === 'C') y0--;
       let y1 = ty; while (this.tileAt(tx, y1 + 1) === 'C') y1++;
+      if (this.tileAt(tx, ty) === 'X') { // hemlig vägg: bryt alla X i kolumnen
+        y0 = ty; while (this.tileAt(tx, y0 - 1) === 'X') y0--;
+        y1 = ty; while (this.tileAt(tx, y1 + 1) === 'X') y1++;
+      }
       for (let y = y0; y <= y1; y++) {
         this.grid[y][tx] = '.';
         for (let i = 0; i < 10; i++) {
@@ -639,9 +663,11 @@
       for (const key in this.triggers) {
         const t = this.triggers[key];
         if (t.type === 'plate') {
-          const r = { x: t.x * TILE + 2, y: t.y * TILE + 8, w: TILE - 4, h: 8 };
-          const pressed = this.blocks.some(b => this.overlap(r, { x: b.x, y: b.y, w: TILE, h: TILE })) ||
-            this.chars.some(c => this.overlap(r, { x: c.x, y: c.y + c.h - 3, w: c.w, h: 3 }));
+          const pressed = t.cells.some(cell => {
+            const r = { x: cell.x * TILE + 2, y: cell.y * TILE + 8, w: TILE - 4, h: 8 };
+            return this.blocks.some(b => this.overlap(r, { x: b.x, y: b.y, w: TILE, h: TILE })) ||
+              this.chars.some(c => this.overlap(r, { x: c.x, y: c.y + c.h - 3, w: c.w, h: 3 }));
+          });
           if (pressed !== t.on) { this.sound.ensure(); this.sound.click(); }
           t.on = pressed;
         } else if (t.type === 'button' && t.timer > 0) {
@@ -656,7 +682,7 @@
     updateDoors(dt) {
       for (const key in this.doors) {
         const d = this.doors[key];
-        const open = d.clauses.some(cl => cl.every(id => this.triggers[id] && this.triggers[id].on));
+        const open = this.evalLogic(d.expr);
         const was = d.target;
         d.target = open ? 1 : 0;
         if (d.target !== was) { this.sound.ensure(); this.sound.gate(open); }
@@ -877,6 +903,7 @@
         }
         ctx.globalAlpha = sel ? 1 : 0.45;
         ctx.drawImage(img, cx - 16 * s, floorY - 40 * s, 32 * s, 40 * s);
+        if (name === 'hedda' && this.outfit.hedda.bag === 1 && this.birkinUnlocked()) this.drawBag(ctx, cx + 5 * s, floorY - 14 * s, s);
         ctx.globalAlpha = 1;
       });
       const u = this.ui;
@@ -885,7 +912,7 @@
       u.wd = {
         name: name === 'edvin' ? 'EDVIN' : 'HEDDA',
         side: this.wd.char,
-        rows: this.wardrobeLists(name).map(([label, key, list], r) => ({ label, value: list[this.outfit[name][key]].name, sel: r === this.wd.row }))
+        rows: this.wardrobeLists(name).map(([label, key, list], r) => ({ label, value: (list[this.outfit[name][key] || 0] || list[0]).name, sel: r === this.wd.row }))
       };
     }
 
@@ -902,7 +929,10 @@
       ctx.save();
       ctx.translate(-camX, H - WORLD_H);   // banan ligger längst ner, extra höjd blir himmel
       this.drawTiles(ctx, camX);
+      this.drawCircuits(ctx);
+      this.drawLabels(ctx);
       this.drawBlocks(ctx);
+      this.drawItems(ctx);
       const henOnTop = this.catchAnim && this.catchAnim.t > 0.35;   // hönan på huvudet ritas ovanpå
       if (!henOnTop) this.drawHen(ctx);
       const order = [1 - this.active, this.active];
@@ -912,7 +942,7 @@
       this.drawParticles(ctx);
       ctx.restore();
 
-      if (this.state === 'play') this.drawHUD(ctx);
+      if (this.state === 'play') { this.drawHUD(ctx); this.drawHUDItems(ctx); }
       ctx.restore();
 
       if (this.flash > 0) { ctx.fillStyle = `rgba(255,255,255,${this.flash * 0.6})`; ctx.fillRect(0, 0, W, H); this.flash = Math.max(0, this.flash - 0.08); }
@@ -977,6 +1007,8 @@
           if (ty === 0) for (let k = 1; k * TILE < H - WORLD_H + TILE; k++) ctx.drawImage(S.tile('stone', tx, -k & 7), px, py - k * TILE);
         }
         else if (t === 'C') ctx.drawImage(S.tile('cracked', tx, ty), px, py);
+        else if (t === 'X') this.drawSecretTile(ctx, tx, ty, px, py);
+        else if (t >= '5' && t <= '9') this.drawTrigger(ctx, this.triggers[t], px, py);
         else if (t === '^') ctx.drawImage(S.tile('spikes', tx, ty), px, py);
         else if (t >= '1' && t <= '4') this.drawTrigger(ctx, this.triggers[t], px, py);
         else if (t >= 'a' && t <= 'd') this.drawGateCell(ctx, tx, ty, px, py);
