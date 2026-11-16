@@ -447,7 +447,8 @@
 
       // Pil upp hoppar när man inte står vid en stege
       if (input.upPressed && !ladder) input = Object.assign({}, input, { jumpPressed: true, jump: true });
-      if (input.up && !ladder && c.vy < 0) input = Object.assign({}, input, { jump: true });
+      // att hålla pil upp räknas som att hålla hoppknappen (annars klipps Heddas hopp efter hennes ansats)
+      if (input.up && !ladder) input = Object.assign({}, input, { jump: true });
       c.input = input;
 
       // ----- Väggstudsning (Edvin) -----
