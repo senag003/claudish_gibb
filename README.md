@@ -10,7 +10,7 @@ Ett 2D-pixelart-pusselspel i webbläsaren. Byt mellan Edvin (snabb, hoppar högt
 |---|---|
 | A / D eller pil vänster/höger | Gå |
 | W eller mellanslag | Hoppa (Edvin: hoppa mot en vägg och hoppa igen för att studsa) |
-| Pil upp / pil ner (eller S) | Klättra i stegar |
+| W / S (eller pil upp/ner) vid en stege | Klättra upp/ner. Mellanslag hoppar av stegen. |
 | TAB | Byt figur |
 | E | Använd, ta upp, öppna terminal, slå |
 | 1–4 | Välj sak i inventariet |

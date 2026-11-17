@@ -48,8 +48,8 @@
 
   // Tangenter
   const k = game.keys;
-  // W och mellanslag hoppar alltid. Pil upp/ner klättrar i stegar (pil upp hoppar när man inte står vid en stege).
-  const move = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'up', KeyW: 'jump', ArrowDown: 'down', KeyS: 'down', Space: 'jump', KeyE: 'actionHeld', Enter: 'actionHeld' };
+  // W / pil upp: klättrar vid en stege, hoppar överallt annars. Mellanslag hoppar alltid. S / pil ner klättrar ner.
+  const move = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', Space: 'jump', KeyE: 'actionHeld', Enter: 'actionHeld' };
   window.addEventListener('keydown', e => {
     const m = move[e.code];
     if (m) e.preventDefault();

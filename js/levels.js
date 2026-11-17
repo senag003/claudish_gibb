@@ -46,7 +46,7 @@
       // ställer sig på hissen och Edvin drar spaken. Golv 2: AND(kabeluppgift, batteri) öppnar gallret.
       // Golv 3: Hedda slår sönder väggen, Edvin klättrar plankorna till hönan.
       name: 'Fabriken',
-      hint: 'E tar upp och använder saker. 1–4 väljer, F släpper. W hoppar, pil upp/ner klättrar.',
+      hint: 'E tar upp och använder saker. 1–4 väljer, F släpper. W hoppar och klättrar i stegar, S klättrar ner.',
       map: build(40, 32, L => {
         L.ground(29);
         L.set(4, 28, 'E'); L.set(6, 28, 'H');
