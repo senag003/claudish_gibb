@@ -26,7 +26,7 @@
   let lastView = '';
   function resize() {
     const s = Math.max(1, Math.floor(window.innerHeight / C.WORLD_H));
-    const w = Math.max(320, Math.min(MIN_LEVEL_W, Math.ceil(window.innerWidth / s)));
+    const w = Math.max(320, Math.min(Math.max(MIN_LEVEL_W, 900), Math.ceil(window.innerWidth / s)));
     const h = Math.max(C.WORLD_H, Math.ceil(window.innerHeight / s));
     const key = w + 'x' + h;
     if (key !== lastView) {
@@ -34,6 +34,10 @@
       C.setView(w, h);
       canvas.width = w; canvas.height = h;
       sprites.buildBg(w, h);
+      // kameran räknas om direkt för den nya vystorleken
+      const c0 = game.chars[game.active];
+      game.camX = game.clampCam(c0.x + c0.w / 2 - w / 2);
+      game.camY = game.clampCamY(c0.y - h * 0.55);
     }
     wrap.style.width = (w * s) + 'px';
     wrap.style.height = (h * s) + 'px';

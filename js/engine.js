@@ -225,7 +225,8 @@
       };
     }
 
-    clampCam(x) { return Math.max(0, Math.min(this.cols * TILE - W, x)); }
+    // Är banan smalare än vyn centreras den (sidorna ritas som bergvägg)
+    clampCam(x) { const maxX = this.cols * TILE - W; return maxX <= 0 ? maxX / 2 : Math.max(0, Math.min(maxX, x)); }
     // Kameran i höjdled. Är banan lägre än vyn ligger den längst ner (negativt värde = extra himmel).
     clampCamY(y) {
       const maxY = this.rows * TILE - H;
@@ -294,6 +295,10 @@
         return;
       }
       if (this.state === 'title' || this.state === 'done') {
+        // kameran räknas om här också (fönstrets storlek kan ha ändrats)
+        const c0 = this.chars[0];
+        this.camX = this.clampCam(c0.x + c0.w / 2 - W / 2 + 40);
+        this.camY = this.clampCamY(c0.y - H * 0.55);
         this.updateHen(dt);
         this.updateParticles(dt);
         if (k.wardrobePressed) { this.sound.ensure(); this.sound.swap(); this.state = 'wardrobe'; this.consumeKeys(); return; }
@@ -1121,13 +1126,15 @@
 
     drawTiles(ctx, camX) {
       const S = this.sprites;
-      const x0 = Math.max(0, Math.floor(camX / TILE) - 1), x1 = Math.min(this.cols - 1, Math.ceil((camX + W) / TILE) + 1);
+      const x0 = Math.floor(camX / TILE) - 1, x1 = Math.ceil((camX + W) / TILE) + 1;
       const tufts = [];
       const cy = Math.round(this.camY || 0);
       const y0 = Math.max(0, Math.floor(cy / TILE) - 1), y1 = Math.min(this.rows - 1, Math.ceil((cy + H) / TILE) + 1);
       for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) {
-        const t = this.grid[ty][tx];
         const px = tx * TILE, py = ty * TILE;
+        // utanför banan i sidled: berg
+        if (tx < 0 || tx >= this.cols) { ctx.drawImage(S.tile('stone', tx & 7, ty), px, py); continue; }
+        const t = this.grid[ty][tx];
         if (t === '#') {
           const above = this.tileAt(tx, ty - 1);
           const top = !(above === '#' || above === 'S');
