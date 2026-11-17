@@ -8,8 +8,9 @@ Ett 2D-pixelart-pusselspel i webbläsaren. Byt mellan Edvin (snabb, hoppar högt
 
 | Tangent | Gör |
 |---|---|
-| Pilar / WASD | Gå, klättra i stegar (upp/ner) |
-| Mellanslag | Hoppa (Edvin: hoppa mot en vägg och hoppa igen för att studsa) |
+| A / D eller pil vänster/höger | Gå |
+| W eller mellanslag | Hoppa (Edvin: hoppa mot en vägg och hoppa igen för att studsa) |
+| Pil upp / pil ner (eller S) | Klättra i stegar |
 | TAB | Byt figur |
 | E | Använd, ta upp, öppna terminal, slå |
 | 1–4 | Välj sak i inventariet |

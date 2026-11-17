@@ -44,8 +44,8 @@
 
   // Tangenter
   const k = game.keys;
-  // upp/ner hålls (stegar); upp hoppar också när man inte står vid en stege (hanteras i motorn)
-  const move = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', Space: 'jump', KeyE: 'actionHeld', Enter: 'actionHeld' };
+  // W och mellanslag hoppar alltid. Pil upp/ner klättrar i stegar (pil upp hoppar när man inte står vid en stege).
+  const move = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'up', KeyW: 'jump', ArrowDown: 'down', KeyS: 'down', Space: 'jump', KeyE: 'actionHeld', Enter: 'actionHeld' };
   window.addEventListener('keydown', e => {
     const m = move[e.code];
     if (m) e.preventDefault();
